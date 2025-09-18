@@ -28,4 +28,6 @@ public abstract class VehicleCacheMapper {
     @Mapping(target = "placa", expression = "java(cryptoService.decryptPlaca(entity.getPlaca()))")
     @Mapping(target = "contrato", expression = "java(cryptoService.decryptContrato(entity.getContrato()))")
     public abstract VehicleDTO toDTO(VehicleCache entity);
+
+    
 }

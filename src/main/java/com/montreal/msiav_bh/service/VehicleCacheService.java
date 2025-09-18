@@ -63,6 +63,20 @@ public class VehicleCacheService {
     @PostConstruct
     public void initializeCache() {
         refreshInMemoryCache();
+
+        try {
+            long missing = countRecordsWithoutHashes();
+            if (missing > 0) {
+                log.warn("Detectados {} registros sem hashes (cpf/protocolo/contrato/placa). Populando em background...", missing);
+                java.util.concurrent.CompletableFuture.runAsync(this::populateHashesForExistingRecords)
+                        .exceptionally(ex -> {
+                            log.error("Falha ao popular hashes em background: {}", ex.getMessage());
+                            return null;
+                        });
+            }
+        } catch (Exception e) {
+            log.warn("Não foi possível verificar/popular hashes na inicialização: {}", e.getMessage());
+        }
     }
 
 
@@ -241,6 +255,19 @@ public class VehicleCacheService {
                                 updatedEntity.setContratoPlacaHash(generateHash(contratoDecrypted + "|" + placaDecrypted));
                             }
                         }
+                        try {
+                            String cpfDecrypted = cryptoService.decryptCpfDevedor(dto.cpfDevedor());
+                            if (cpfDecrypted != null && !"N/A".equals(cpfDecrypted)) {
+                                String cpfDigitsOnly = cpfDecrypted.replaceAll("[^0-9]", "");
+                                updatedEntity.setCpfHash(generateHash(cpfDigitsOnly));
+                            }
+                        } catch (Exception ignored) {}
+                        try {
+                            String protocoloDecrypted = cryptoService.decryptProtocolo(dto.protocolo());
+                            if (protocoloDecrypted != null && !"N/A".equals(protocoloDecrypted)) {
+                                updatedEntity.setProtocoloHash(generateHash(protocoloDecrypted));
+                            }
+                        } catch (Exception ignored) {}
 
                         vehicleCacheRepository.save(updatedEntity);
                         updated++;
@@ -265,6 +292,19 @@ public class VehicleCacheService {
                     if (contratoDecrypted != null && placaDecrypted != null) {
                         newEntity.setContratoPlacaHash(generateHash(contratoDecrypted + "|" + placaDecrypted));
                     }
+                    try {
+                        String cpfDecrypted = cryptoService.decryptCpfDevedor(dto.cpfDevedor());
+                        if (cpfDecrypted != null && !"N/A".equals(cpfDecrypted)) {
+                            String cpfDigitsOnly = cpfDecrypted.replaceAll("[^0-9]", "");
+                            newEntity.setCpfHash(generateHash(cpfDigitsOnly));
+                        }
+                    } catch (Exception ignored) {}
+                    try {
+                        String protocoloDecrypted = cryptoService.decryptProtocolo(dto.protocolo());
+                        if (protocoloDecrypted != null && !"N/A".equals(protocoloDecrypted)) {
+                            newEntity.setProtocoloHash(generateHash(protocoloDecrypted));
+                        }
+                    } catch (Exception ignored) {}
 
                     VehicleCache savedEntity = vehicleCacheRepository.save(newEntity);
                     inserted++;
@@ -581,8 +621,8 @@ public class VehicleCacheService {
 
         String contratoHash = null;
         String placaHash = null;
-        String protocoloCriptografado = null;
-        String cpfCriptografado = null;
+        String protocoloHash = null;
+        String cpfHash = null;
         String cidadeCriptografada = null;
 
         if (contrato != null && !contrato.trim().isEmpty()) {
@@ -594,23 +634,12 @@ public class VehicleCacheService {
         }
 
         if (protocolo != null && !protocolo.trim().isEmpty()) {
-            try {
-                protocoloCriptografado = cryptoService.encryptProtocolo(protocolo.trim());
-                log.debug("Protocolo criptografado para busca: {} -> {}",
-                        protocolo, protocoloCriptografado != null ? protocoloCriptografado.substring(0, Math.min(20, protocoloCriptografado.length())) + "..." : "null");
-            } catch (Exception e) {
-                log.error("Erro ao criptografar protocolo para busca: {}", e.getMessage());
-            }
+            protocoloHash = generateHash(protocolo.trim());
         }
 
         if (cpf != null && !cpf.trim().isEmpty()) {
-            try {
-                cpfCriptografado = cryptoService.encryptCpfDevedor(cpf.trim());
-                log.debug("CPF/CNPJ criptografado para busca: {} -> {}",
-                        cpf, cpfCriptografado != null ? cpfCriptografado.substring(0, Math.min(20, cpfCriptografado.length())) + "..." : "null");
-            } catch (Exception e) {
-                log.error("Erro ao criptografar CPF/CNPJ para busca: {}", e.getMessage());
-            }
+            String cpfDigitsOnly = cpf.replaceAll("[^0-9]", "");
+            cpfHash = generateHash(cpfDigitsOnly);
         }
 
         if (cidade != null && !cidade.trim().isEmpty()) {
@@ -626,7 +655,7 @@ public class VehicleCacheService {
         }
 
         Page<VehicleCache> cachedVehicles = vehicleCacheRepository.findWithFiltersFixed(
-                dataInicio, dataFim, credor, contratoHash, protocoloCriptografado, cpfCriptografado,
+                dataInicio, dataFim, credor, contratoHash, protocoloHash, cpfHash,
                 uf, cidadeCriptografada, modelo, placaHash, etapaAtual, statusApreensao, pageable
         );
 
@@ -742,7 +771,9 @@ public class VehicleCacheService {
     }
 
     public long countRecordsWithoutHashes() {
-        return vehicleCacheRepository.count() - vehicleCacheRepository.countByContratoHashIsNotNullAndPlacaHashIsNotNull();
+        long base = vehicleCacheRepository.count() - vehicleCacheRepository.countByContratoHashIsNotNullAndPlacaHashIsNotNull();
+        long extra = vehicleCacheRepository.count() - vehicleCacheRepository.countByCpfHashIsNotNullAndProtocoloHashIsNotNull();
+        return Math.max(base, extra);
     }
 
     @Transactional
@@ -750,6 +781,7 @@ public class VehicleCacheService {
         log.info("Iniciando população de hashes para registros existentes");
 
         List<VehicleCache> recordsWithoutHashes = vehicleCacheRepository.findByContratoHashIsNullOrPlacaHashIsNull();
+        List<VehicleCache> recordsWithoutCpfProto = vehicleCacheRepository.findByCpfHashIsNullOrProtocoloHashIsNull();
         int updated = 0;
         int errors = 0;
 
@@ -774,6 +806,24 @@ public class VehicleCacheService {
 
             } catch (Exception e) {
                 log.error("Erro ao popular hash para veículo ID {}: {}", vehicle.getId(), e.getMessage());
+                errors++;
+            }
+        }
+
+        for (VehicleCache vehicle : recordsWithoutCpfProto) {
+            try {
+                String cpf = cryptoService.decryptCpfDevedor(vehicle.getCpfDevedor());
+                String protocolo = cryptoService.decryptProtocolo(vehicle.getProtocolo());
+                if (cpf != null) {
+                    vehicle.setCpfHash(generateHash(cpf.replaceAll("[^0-9]", "")));
+                }
+                if (protocolo != null) {
+                    vehicle.setProtocoloHash(generateHash(protocolo));
+                }
+                vehicleCacheRepository.save(vehicle);
+                updated++;
+            } catch (Exception e) {
+                log.error("Erro ao popular cpf/protocolo hash para veículo ID {}: {}", vehicle.getId(), e.getMessage());
                 errors++;
             }
         }

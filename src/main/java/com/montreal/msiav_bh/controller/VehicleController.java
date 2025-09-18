@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,7 +54,7 @@ public class VehicleController {
             @RequestParam(required = false) String credor,
             @RequestParam(required = false) String contrato,
             @RequestParam(required = false) String protocolo,
-            @RequestParam(required = false) @Pattern(regexp = "\\d{11,14}", message = ValidationMessages.CPF_INVALIDO) String cpf,
+            @RequestParam(required = false) String cpf,
             @RequestParam(required = false) String uf,
             @RequestParam(required = false) String cidade,
             @RequestParam(required = false) String modelo,
