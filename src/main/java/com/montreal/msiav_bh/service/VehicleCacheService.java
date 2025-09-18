@@ -581,7 +581,11 @@ public class VehicleCacheService {
 
         String contratoHash = null;
         String placaHash = null;
+        String protocoloCriptografado = null;
+        String cpfCriptografado = null;
+        String cidadeCriptografada = null;
 
+        // Hash para contrato e placa (busca exata)
         if (contrato != null && !contrato.trim().isEmpty()) {
             contratoHash = generateHash(contrato.trim());
         }
@@ -590,9 +594,44 @@ public class VehicleCacheService {
             placaHash = generateHash(placa.trim().toUpperCase());
         }
 
+        // Criptografar protocolo para busca
+        if (protocolo != null && !protocolo.trim().isEmpty()) {
+            try {
+                protocoloCriptografado = cryptoService.encryptProtocolo(protocolo.trim());
+                log.debug("Protocolo criptografado para busca: {} -> {}", 
+                    protocolo, protocoloCriptografado != null ? protocoloCriptografado.substring(0, Math.min(20, protocoloCriptografado.length())) + "..." : "null");
+            } catch (Exception e) {
+                log.error("Erro ao criptografar protocolo para busca: {}", e.getMessage());
+            }
+        }
+
+        // Criptografar CPF/CNPJ para busca
+        if (cpf != null && !cpf.trim().isEmpty()) {
+            try {
+                cpfCriptografado = cryptoService.encryptCpfDevedor(cpf.trim());
+                log.debug("CPF/CNPJ criptografado para busca: {} -> {}", 
+                    cpf, cpfCriptografado != null ? cpfCriptografado.substring(0, Math.min(20, cpfCriptografado.length())) + "..." : "null");
+            } catch (Exception e) {
+                log.error("Erro ao criptografar CPF/CNPJ para busca: {}", e.getMessage());
+            }
+        }
+
+        // Criptografar cidade para busca (se necessário)
+        if (cidade != null && !cidade.trim().isEmpty()) {
+            try {
+                cidadeCriptografada = cryptoService.encryptCidade(cidade.trim());
+                log.debug("Cidade criptografada para busca: {} -> {}", 
+                    cidade, cidadeCriptografada != null ? cidadeCriptografada.substring(0, Math.min(20, cidadeCriptografada.length())) + "..." : "null");
+            } catch (Exception e) {
+                log.error("Erro ao criptografar cidade para busca: {}", e.getMessage());
+                // Se falhar a criptografia, tenta buscar com o valor original
+                cidadeCriptografada = cidade;
+            }
+        }
+
         Page<VehicleCache> cachedVehicles = vehicleCacheRepository.findWithFiltersFixed(
-                dataInicio, dataFim, credor, contratoHash, protocolo, cpf,
-                uf, cidade, modelo, placaHash, etapaAtual, statusApreensao, pageable
+                dataInicio, dataFim, credor, contratoHash, protocoloCriptografado, cpfCriptografado,
+                uf, cidadeCriptografada, modelo, placaHash, etapaAtual, statusApreensao, pageable
         );
 
         log.info("Dados recuperados do PostgreSQL: {} registros de {} total",

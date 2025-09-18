@@ -73,7 +73,7 @@ public interface VehicleCacheRepository extends JpaRepository<VehicleCache, Long
             "AND (CAST(:protocolo AS VARCHAR) IS NULL OR v.protocolo = CAST(:protocolo AS VARCHAR)) " +
             "AND (CAST(:cpf AS VARCHAR) IS NULL OR v.cpf_devedor = CAST(:cpf AS VARCHAR)) " +
             "AND (CAST(:uf AS VARCHAR) IS NULL OR v.uf = CAST(:uf AS VARCHAR)) " +
-            "AND (CAST(:cidade AS VARCHAR) IS NULL OR UPPER(v.cidade) LIKE UPPER(CONCAT('%', CAST(:cidade AS VARCHAR), '%'))) " +
+            "AND (CAST(:cidade AS VARCHAR) IS NULL OR v.cidade = CAST(:cidade AS VARCHAR)) " +
             "AND (CAST(:modelo AS VARCHAR) IS NULL OR UPPER(v.modelo) LIKE UPPER(CONCAT('%', CAST(:modelo AS VARCHAR), '%'))) " +
             "AND (CAST(:placaHash AS VARCHAR) IS NULL OR v.placa_hash = CAST(:placaHash AS VARCHAR)) " +
             "AND (CAST(:etapaAtual AS VARCHAR) IS NULL OR v.etapa_atual = CAST(:etapaAtual AS VARCHAR)) " +

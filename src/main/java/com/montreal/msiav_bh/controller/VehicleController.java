@@ -69,6 +69,14 @@ public class VehicleController {
             HttpServletResponse httpResponse
     ) {
         log.info("Requisição recebida - Estratégia: DATABASE-FIRST");
+        
+        // Log detalhado dos filtros recebidos
+        if (protocolo != null || cpf != null) {
+            log.info("🔍 BUSCA ESPECIAL - Protocolo: {}, CPF/CNPJ: {}", protocolo, cpf);
+        }
+        if (contrato != null || placa != null) {
+            log.info("🔍 BUSCA POR - Contrato: {}, Placa: {}", contrato, placa);
+        }
 
         if (dataInicio == null && dataFim == null) {
             log.info("Nenhum período especificado - retornando todos os registros");
