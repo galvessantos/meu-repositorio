@@ -36,7 +36,6 @@ public class VehicleCacheService {
     private final VehicleCacheRepository vehicleCacheRepository;
     private final VehicleCacheMapper vehicleCacheMapper;
     private final VehicleCacheCryptoService cryptoService;
-    private VehicleCacheEnrichmentService enrichmentService; // Injeção circular evitada
 
     private final ReentrantLock cacheLock = new ReentrantLock();
 
@@ -66,22 +65,6 @@ public class VehicleCacheService {
         refreshInMemoryCache();
     }
     
-    // Setter para evitar dependência circular
-    public void setEnrichmentService(VehicleCacheEnrichmentService enrichmentService) {
-        this.enrichmentService = enrichmentService;
-    }
-    
-    public List<VehicleCache> getVehiclesWithIncompleteData() {
-        return vehicleCacheRepository.findVehiclesWithIncompleteData();
-    }
-    
-    public void enrichIncompleteVehicles() {
-        if (enrichmentService != null) {
-            enrichmentService.enrichIncompleteVehicles();
-        } else {
-            log.warn("Serviço de enriquecimento não está configurado");
-        }
-    }
 
     @Scheduled(fixedRate = 3600000)
     public void cleanupInMemoryCache() {
@@ -310,37 +293,6 @@ public class VehicleCacheService {
         log.info("{} sem mudanças (só sync date)", noChangesFound);
         log.info("{} novos inseridos", inserted);
         log.info("{} duplicados ignorados", duplicateSkipped);
-        
-        // Enriquecer dados após salvar os básicos
-        if (enrichmentService != null && (inserted > 0 || updated > 0)) {
-            List<Long> vehicleIdsToEnrich = new ArrayList<>();
-            
-            // Coletar IDs dos veículos inseridos/atualizados para enriquecimento
-            for (VehicleDTO dto : vehicles) {
-                Long vehicleId = findVehicleIdByData(dto);
-                if (vehicleId != null) {
-                    vehicleIdsToEnrich.add(vehicleId);
-                }
-            }
-            
-            if (!vehicleIdsToEnrich.isEmpty()) {
-                log.info("Iniciando enriquecimento assíncrono de {} veículos", vehicleIdsToEnrich.size());
-                enrichmentService.enrichCacheDataAsync(vehicleIdsToEnrich);
-            }
-        }
-    }
-    
-    private Long findVehicleIdByData(VehicleDTO dto) {
-        try {
-            if (dto.contrato() != null && !"N/A".equals(dto.contrato())) {
-                return contratoToIdCache.getIfPresent(dto.contrato());
-            } else if (dto.placa() != null && !"N/A".equals(dto.placa())) {
-                return placaToIdCache.getIfPresent(dto.placa());
-            }
-        } catch (Exception e) {
-            log.debug("Erro ao buscar ID do veículo: {}", e.getMessage());
-        }
-        return null;
     }
 
     private Optional<VehicleCache> findExistingVehicleOptimized(VehicleDTO dto) {
