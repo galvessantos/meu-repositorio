@@ -6,6 +6,7 @@ import com.montreal.msiav_bh.dto.response.ConsultaNotificationResponseDTO;
 import com.montreal.msiav_bh.mapper.VehicleInquiryMapper;
 import com.montreal.msiav_bh.service.ApiQueryService;
 import com.montreal.msiav_bh.service.VehicleCacheService;
+import com.montreal.msiav_bh.service.VehicleDataFetchService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class VehicleCacheUpdateJob {
     private final ApiQueryService apiQueryService;
     private final VehicleInquiryMapper vehicleInquiryMapper;
     private final VehicleCacheService vehicleCacheService;
+    private final VehicleDataFetchService vehicleDataFetchService;
 
     private final ReentrantLock jobLock = new ReentrantLock();
 
@@ -135,29 +137,32 @@ public class VehicleCacheUpdateJob {
             VehicleCacheService.CacheStatus statusAntes = vehicleCacheService.getCacheStatus();
             log.info("Status do cache antes da atualização: {}", statusAntes.getMessage());
 
-            List<ConsultaNotificationResponseDTO.NotificationData> notifications =
-                    tryFetchWithDateRange(daysToFetch, "período principal");
-
-            if ((notifications == null || notifications.isEmpty()) && fallbackDaysToFetch > daysToFetch) {
-                log.info("Tentando período de fallback de {} dias", fallbackDaysToFetch);
-                notifications = tryFetchWithDateRange(fallbackDaysToFetch, "período de fallback");
+            // AGORA USANDO O SERVIÇO QUE JÁ TRAZ DADOS COMPLETOS!
+            LocalDate endDate = LocalDate.now();
+            LocalDate startDate = endDate.minusDays(daysToFetch);
+            
+            log.info("Buscando dados COMPLETOS do período: {} a {}", startDate, endDate);
+            List<VehicleDTO> vehicles = null;
+            
+            try {
+                vehicles = vehicleDataFetchService.fetchCompleteVehicleData(startDate, endDate);
+                log.info("✅ Dados COMPLETOS obtidos: {} veículos com protocolo, cidade e CPF preenchidos", 
+                    vehicles.size());
+            } catch (Exception e) {
+                log.error("Erro ao buscar dados completos, tentando período de fallback", e);
+                
+                if (fallbackDaysToFetch > daysToFetch) {
+                    startDate = endDate.minusDays(fallbackDaysToFetch);
+                    vehicles = vehicleDataFetchService.fetchCompleteVehicleData(startDate, endDate);
+                }
             }
 
-            if (notifications == null || notifications.isEmpty()) {
-                notifications = tryHistoricalPeriods();
-            }
+            if (vehicles != null && !vehicles.isEmpty()) {
+                log.info("Salvando {} veículos com dados COMPLETOS no cache", vehicles.size());
 
-            if (!notifications.isEmpty()) {
-                log.info("API retornou {} notificações", notifications.size());
-
-                List<VehicleDTO> vehicles = vehicleInquiryMapper.mapToVeiculoDTO(notifications);
-                log.info("Convertidos para {} veículos únicos criptografados", vehicles.size());
-
-                LocalDate endDate = LocalDate.now();
-                LocalDate startDate = endDate.minusDays(daysToFetch);
                 CacheUpdateContext context = CacheUpdateContext.scheduledRefresh(startDate, endDate);
 
-                log.info("Salvando dados criptografados no PostgreSQL...");
+                log.info("Salvando dados COMPLETOS e criptografados no PostgreSQL...");
                 vehicleCacheService.updateCacheThreadSafe(vehicles, context);
 
                 VehicleCacheService.CacheStatus statusDepois = vehicleCacheService.getCacheStatus();
@@ -165,14 +170,13 @@ public class VehicleCacheUpdateJob {
                 long duration = java.time.Duration.between(lastJobStart, LocalDateTime.now()).toSeconds();
                 log.info("==== JOB CONCLUÍDO COM SUCESSO ====");
                 log.info("Tempo de execução: {} segundos", duration);
-                log.info("Veículos processados: {}", vehicles.size());
+                log.info("Veículos processados: {} (TODOS com protocolo, cidade e CPF)", vehicles.size());
                 log.info("Status após atualização: {}", statusDepois.getMessage());
                 log.info("Registros no cache: {} -> {}", statusAntes.getTotalRecords(), statusDepois.getTotalRecords());
-                log.info("Próxima execução em 10 minutos");
+                log.info("🎯 Próxima execução automática em 10 minutos");
             } else {
-                log.warn("==== NENHUM DADO ENCONTRADO EM TODOS OS PERÍODOS TENTADOS ====");
-                log.warn("Verifique se há dados disponíveis na API externa ou se as datas estão corretas");
-                log.warn("Cache atual será mantido até próxima sincronização bem-sucedida");
+                log.warn("==== NENHUM DADO ENCONTRADO ====");
+                log.warn("Cache atual será mantido até próxima sincronização");
             }
 
         } catch (Exception e) {
@@ -194,53 +198,7 @@ public class VehicleCacheUpdateJob {
         }
     }
 
-    private List<ConsultaNotificationResponseDTO.NotificationData> tryFetchWithDateRange(int days, String periodName) {
-        try {
-            LocalDate endDate = LocalDate.now();
-            LocalDate startDate = endDate.minusDays(days);
-
-            log.info("Tentando {} - Período de busca: {} a {}", periodName, startDate, endDate);
-            log.info("Consultando API externa...");
-
-            return apiQueryService.searchByPeriod(startDate, endDate);
-        } catch (Exception e) {
-            log.warn("Erro ao buscar dados para {}: {}", periodName, e.getMessage());
-            return List.of();
-        }
-    }
-
-    private List<ConsultaNotificationResponseDTO.NotificationData> tryHistoricalPeriods() {
-        log.info("Tentando períodos históricos...");
-
-        LocalDate currentDate = LocalDate.now();
-
-        for (int monthsBack = 1; monthsBack <= 6; monthsBack++) {
-            try {
-                LocalDate endDate = currentDate.minusMonths(monthsBack);
-                LocalDate startDate = endDate.minusDays(30);
-
-                if (ChronoUnit.DAYS.between(startDate, currentDate) > maxHistoricalDays) {
-                    break;
-                }
-
-                log.info("Tentando período histórico: {} a {} ({} meses atrás)",
-                        startDate, endDate, monthsBack);
-
-                List<ConsultaNotificationResponseDTO.NotificationData> notifications =
-                        apiQueryService.searchByPeriod(startDate, endDate);
-
-                if (notifications != null && !notifications.isEmpty()) {
-                    log.info("Encontrados dados no período histórico de {} meses atrás", monthsBack);
-                    return notifications;
-                }
-            } catch (Exception e) {
-                log.debug("Erro ao buscar período histórico de {} meses: {}", monthsBack, e.getMessage());
-            }
-        }
-
-        log.warn("Nenhum dado encontrado em períodos históricos");
-        return List.of();
-    }
+    // Métodos antigos removidos - agora usamos VehicleDataFetchService que já traz dados completos
 
     public String getJobStatus() {
         if (isJobRunning && lastJobStart != null) {
