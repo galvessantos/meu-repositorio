@@ -179,4 +179,41 @@ public class VehicleController {
             ));
         }
     }
+    
+    @PostMapping("/cache/enrich")
+    @Operation(summary = "Enriquecer dados incompletos do cache")
+    public ResponseEntity<Map<String, Object>> enrichCacheData() {
+        try {
+            log.info("Enriquecimento de cache solicitado via API");
+            
+            // Buscar veículos com dados incompletos
+            var incompleteVehicles = vehicleCacheService.getVehiclesWithIncompleteData();
+            
+            if (incompleteVehicles.isEmpty()) {
+                return ResponseEntity.ok(Map.of(
+                        "status", "success",
+                        "message", "Nenhum veículo com dados incompletos encontrado",
+                        "vehiclesProcessed", 0
+                ));
+            }
+            
+            // Iniciar enriquecimento assíncrono
+            vehicleCacheService.enrichIncompleteVehicles();
+            
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Enriquecimento iniciado em background",
+                    "vehiclesToProcess", incompleteVehicles.size(),
+                    "info", "O processo está rodando em background. Verifique os logs para acompanhar o progresso."
+            ));
+            
+        } catch (Exception e) {
+            log.error("Falha ao iniciar enriquecimento do cache", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", "Falha ao iniciar enriquecimento",
+                    "error", e.getMessage()
+            ));
+        }
+    }
 }

@@ -108,4 +108,10 @@ public interface VehicleCacheRepository extends JpaRepository<VehicleCache, Long
 
     List<VehicleCache> findAllByContrato(String contratoNumero);
 
+    @Query("SELECT v FROM VehicleCache v WHERE " +
+           "(v.protocolo IS NULL OR v.protocolo = 'N/A' OR v.protocolo = '') OR " +
+           "(v.cidade IS NULL OR v.cidade = 'N/A' OR v.cidade = '') OR " +
+           "(v.cpfDevedor IS NULL OR v.cpfDevedor = 'N/A' OR v.cpfDevedor = '')")
+    List<VehicleCache> findVehiclesWithIncompleteData();
+
 }
