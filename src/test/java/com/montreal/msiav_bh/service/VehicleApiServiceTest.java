@@ -89,7 +89,6 @@ class VehicleApiServiceTest {
         when(vehicleCacheService.getFromCache(any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any())).thenReturn(mockPageWithData);
 
-
         PageDTO<VehicleDTO> result = vehicleApiService.getVehiclesWithFallback(
                 dataInicio, dataFim, null, null, null, null, null, null,
                 null, null, null, null, 0, 10, "protocolo", "asc"
@@ -151,7 +150,6 @@ class VehicleApiServiceTest {
         Page<VehicleDTO> emptyPage = new PageImpl<>(List.of());
 
         when(mockCacheStatus.getTotalRecords()).thenReturn(10L);
-        when(mockCacheStatus.getMinutesSinceLastSync()).thenReturn(90L);
         when(vehicleCacheService.getCacheStatus()).thenReturn(mockCacheStatus);
         when(vehicleCacheService.getFromCache(any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any())).thenReturn(emptyPage);
