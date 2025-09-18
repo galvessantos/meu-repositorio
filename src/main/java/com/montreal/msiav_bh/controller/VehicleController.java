@@ -251,4 +251,53 @@ public class VehicleController {
             ));
         }
     }
+    
+    @PostMapping("/cache/enrich-all")
+    @Operation(summary = "Enriquecer TODOS os dados incompletos de forma controlada")
+    public ResponseEntity<Map<String, Object>> enrichAllCache(
+            @RequestParam(defaultValue = "5") int batchSize) {
+        try {
+            log.info("=== ENRIQUECIMENTO COMPLETO SOLICITADO ===");
+            log.info("Tamanho do lote: {} veículos", batchSize);
+            
+            if (batchSize > 20) {
+                batchSize = 20; // Limitar tamanho do lote
+                log.info("Tamanho do lote ajustado para máximo de 20");
+            }
+            
+            // Contar total antes de começar
+            long totalIncomplete = vehicleCacheService.getVehiclesWithIncompleteData().size();
+            
+            if (totalIncomplete == 0) {
+                return ResponseEntity.ok(Map.of(
+                        "status", "success",
+                        "message", "Nenhum veículo incompleto encontrado",
+                        "totalVehicles", 0
+                ));
+            }
+            
+            log.info("Total de veículos incompletos: {}", totalIncomplete);
+            
+            // Executar enriquecimento completo
+            var result = enrichmentSimpleService.enrichAllVehicles(batchSize);
+            
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Enriquecimento completo finalizado",
+                    "totalInitial", totalIncomplete,
+                    "totalBatches", result.get("totalBatches"),
+                    "totalSuccess", result.get("totalSuccess"),
+                    "totalErrors", result.get("totalErrors"),
+                    "info", "Todos os veículos foram processados"
+            ));
+            
+        } catch (Exception e) {
+            log.error("Falha no enriquecimento completo", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", "Falha no enriquecimento completo",
+                    "error", e.getMessage()
+            ));
+        }
+    }
 }

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 @Slf4j
 @Service
@@ -67,6 +69,84 @@ public class VehicleCacheEnrichmentSimpleService {
         log.info("❌ Erros: {} veículos", errorCount);
         
         return successCount;
+    }
+    
+    /**
+     * Enriquece TODOS os veículos incompletos de forma controlada
+     * Processa em lotes pequenos com pausas para evitar sobrecarga
+     */
+    public Map<String, Integer> enrichAllVehicles(int batchSize) {
+        log.info("=== INICIANDO ENRIQUECIMENTO COMPLETO ===");
+        
+        int totalProcessed = 0;
+        int totalSuccess = 0;
+        int totalErrors = 0;
+        int batchNumber = 0;
+        
+        // Continuar até não haver mais veículos incompletos
+        while (true) {
+            batchNumber++;
+            
+            // Contar quantos ainda faltam
+            long remainingCount = vehicleCacheRepository.findVehiclesWithIncompleteData()
+                    .stream()
+                    .count();
+            
+            if (remainingCount == 0) {
+                log.info("✅ Todos os veículos foram processados!");
+                break;
+            }
+            
+            log.info("📊 Lote {}: {} veículos restantes", batchNumber, remainingCount);
+            
+            try {
+                // Processar próximo lote
+                int processed = enrichLimitedVehicles(batchSize);
+                totalProcessed += batchSize;
+                totalSuccess += processed;
+                
+                if (processed == 0 && remainingCount > 0) {
+                    // Se não processou nada mas ainda tem veículos, pode ser erro
+                    log.warn("⚠️ Nenhum veículo processado no lote {}, mas ainda restam {}", 
+                        batchNumber, remainingCount);
+                    totalErrors += Math.min(batchSize, remainingCount);
+                }
+                
+                // Pausa maior entre lotes
+                log.info("⏸️ Aguardando 2 segundos antes do próximo lote...");
+                Thread.sleep(2000);
+                
+            } catch (Exception e) {
+                log.error("Erro no lote {}: {}", batchNumber, e.getMessage());
+                totalErrors += batchSize;
+                
+                // Pausa maior em caso de erro
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException ie) {
+                    break;
+                }
+            }
+            
+            // Limite de segurança para evitar loop infinito
+            if (batchNumber > 1000) {
+                log.warn("⚠️ Limite de segurança atingido (1000 lotes)");
+                break;
+            }
+        }
+        
+        log.info("=== ENRIQUECIMENTO COMPLETO FINALIZADO ===");
+        log.info("📊 Total de lotes processados: {}", batchNumber);
+        log.info("✅ Veículos enriquecidos com sucesso: {}", totalSuccess);
+        log.info("❌ Veículos com erro: {}", totalErrors);
+        
+        Map<String, Integer> result = new HashMap<>();
+        result.put("totalBatches", batchNumber);
+        result.put("totalSuccess", totalSuccess);
+        result.put("totalErrors", totalErrors);
+        result.put("totalAttempted", totalProcessed);
+        
+        return result;
     }
     
     private boolean enrichSingleVehicleSimple(VehicleCache vehicle) {
