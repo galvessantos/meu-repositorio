@@ -51,14 +51,15 @@ public class VehicleApiService {
                     page, size, sortBy, sortDir
             );
 
-            boolean shouldFetchFromApi = false;
+            boolean isCacheStatusNull = (cacheStatus == null);
+            long totalRecords = isCacheStatusNull ? 0L : cacheStatus.getTotalRecords();
+            boolean isCacheValid = !isCacheStatusNull && cacheStatus.isValid();
 
-            if (cacheStatus == null) {
+            boolean shouldFetchFromApi = isCacheStatusNull || totalRecords == 0;
+            if (isCacheStatusNull) {
                 log.warn("Status do cache indisponível - assumindo necessidade de buscar da API");
-                shouldFetchFromApi = true;
-            } else if (cacheStatus.getTotalRecords() == 0) {
+            } else if (totalRecords == 0) {
                 log.warn("Cache vazio - buscando dados iniciais da API");
-                shouldFetchFromApi = true;
             }
 
             if (shouldFetchFromApi) {
@@ -67,7 +68,7 @@ public class VehicleApiService {
                         statusApreensao, page, size, sortBy, sortDir);
             }
 
-            if (cacheStatus != null && !cacheStatus.isValid() && cacheStatus.getTotalRecords() > 0) {
+            if (!isCacheStatusNull && !isCacheValid && totalRecords > 0) {
                 log.info("Cache desatualizado - iniciando atualização em background");
                 scheduleBackgroundCacheUpdate(dataInicio, dataFim);
             }
