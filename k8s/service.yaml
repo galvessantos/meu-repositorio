@@ -1,0 +1,11 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: amk-gestao-garantias-backend-dev
+  namespace: amk-gestao-garantias-dev
+spec:
+  selector:
+    app: amk-gestao-garantias-backend-dev
+  ports:
+  - port: 8080
+    targetPort: 8080

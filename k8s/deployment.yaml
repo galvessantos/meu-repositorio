@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amk-gestao-garantias-backend-dev
+  namespace: amk-gestao-garantias-dev
+spec:
+  selector:
+    matchLabels:
+      app: amk-gestao-garantias-backend-dev
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: amk-gestao-garantias-backend-dev
+    spec:
+      #hostAliases:
+      #  - ip: "192.168.6.11"
+      #    hostnames:
+      #      - "homol-recupera.montreal.com.br"
+      containers:
+       - name: amk-gestao-garantias-backend-dev
+         image: mimontreal/k8s_amk_gestao_garantias_backend_dev:TAGIMG
+         resources:
+           requests:
+             memory: "800Mi"
+             cpu: "100m"
+           limits:
+             memory: "2Gi"
+             cpu: "2"
+         env:
+           - name: SPRING_PROFILES_ACTIVE
+             value: dev
+           - name: JAVA_OPTS
+             value: "-Xms768m -Xmx768m -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+UseContainerSupport -Duser.timezone=America/Fortaleza -Duser.language=pt -Duser.country=BR"
+           - name: TZ
+             value: America/Fortaleza  
+         livenessProbe: 
+           tcpSocket: 
+             port: 8080  
+           initialDelaySeconds: 30
+           periodSeconds: 20
+           timeoutSeconds: 10
+         volumeMounts:
+           - name: amk-gestao-garantias-backend-dev-logs
+             mountPath: /logs
+          # - name: cifs-amk-gestao-garantias-dev
+          #   mountPath: /amk_gestao_garantias_dev
+      volumes:  
+         - name: amk-gestao-garantias-backend-dev-logs
+           hostPath:
+             path: /vol/app/esteira-gestao-garantias-maker/amk-gestao-garantias-dev/amk-gestao-garantias-backend-dev/logs
+       #  - name: cifs-amk-gestao-garantias-dev
+       #    persistentVolumeClaim:
+       #      claimName: cifs-amk-gestao-garantias-dev

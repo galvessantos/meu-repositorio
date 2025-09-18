@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: amk-gestao-garantias-backend-dev
+  namespace: amk-gestao-garantias-dev
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: gestao-garantias-backend-dev.amk.k8s.montreal.com.br
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: amk-gestao-garantias-backend-dev
+            port:
+              number: 8080
