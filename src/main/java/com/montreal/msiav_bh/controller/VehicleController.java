@@ -46,6 +46,8 @@ public class VehicleController {
     private final ContractPersistenceService persistenceService;
     @Autowired
     private ApiQueryService apiQueryService;
+    @Autowired
+    private VehicleCacheEnrichmentSimpleService enrichmentSimpleService;
 
     @GetMapping
     @Operation(summary = "Buscar veículos (Database-First)")
@@ -212,6 +214,39 @@ public class VehicleController {
             return ResponseEntity.internalServerError().body(Map.of(
                     "status", "error",
                     "message", "Falha ao iniciar enriquecimento",
+                    "error", e.getMessage()
+            ));
+        }
+    }
+    
+    @PostMapping("/cache/enrich-simple")
+    @Operation(summary = "Enriquecer dados de forma síncrona e limitada (mais estável)")
+    public ResponseEntity<Map<String, Object>> enrichCacheSimple(
+            @RequestParam(defaultValue = "10") int limit) {
+        try {
+            log.info("Enriquecimento simples solicitado - limite: {}", limit);
+            
+            if (limit > 50) {
+                limit = 50; // Limitar para evitar timeout
+                log.info("Limite ajustado para máximo de 50 veículos");
+            }
+            
+            // Executar enriquecimento simples e síncrono
+            int processedCount = enrichmentSimpleService.enrichLimitedVehicles(limit);
+            
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Enriquecimento simples concluído",
+                    "vehiclesProcessed", processedCount,
+                    "limit", limit,
+                    "info", "Use este endpoint repetidamente para processar todos os veículos aos poucos"
+            ));
+            
+        } catch (Exception e) {
+            log.error("Falha no enriquecimento simples", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", "Falha no enriquecimento simples",
                     "error", e.getMessage()
             ));
         }
