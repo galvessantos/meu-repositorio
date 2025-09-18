@@ -28,6 +28,7 @@ public class VehicleApiService {
     private final ApiQueryService apiQueryService;
     private final VehicleInquiryMapper vehicleInquiryMapper;
     private final VehicleCacheService vehicleCacheService;
+    private final VehicleDataFetchService vehicleDataFetchService;
 
     private static final String CIRCUIT_BREAKER_NAME = "vehicle-api";
 
@@ -153,11 +154,9 @@ public class VehicleApiService {
             LocalDate searchEnd = dataFim != null ? dataFim : LocalDate.now();
 
             CompletableFuture<PageDTO<VehicleDTO>> future = CompletableFuture.supplyAsync(() -> {
-                List<ConsultaNotificationResponseDTO.NotificationData> notifications =
-                        apiQueryService.searchByPeriod(searchStart, searchEnd);
-
-                List<VehicleDTO> vehiclesEncrypted = vehicleInquiryMapper.mapToVeiculoDTO(notifications);
-                log.info("Dados da API convertidos e criptografados: {} veículos", vehiclesEncrypted.size());
+                // Usar o novo serviço otimizado que já busca dados completos
+                List<VehicleDTO> vehiclesEncrypted = vehicleDataFetchService.fetchCompleteVehicleData(searchStart, searchEnd);
+                log.info("Dados completos obtidos e criptografados: {} veículos", vehiclesEncrypted.size());
 
                 if (!vehiclesEncrypted.isEmpty()) {
                     CacheUpdateContext context = CacheUpdateContext.filteredSearch(

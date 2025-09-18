@@ -252,6 +252,42 @@ public class VehicleController {
         }
     }
     
+    @PostMapping("/cache/refresh-complete")
+    @Operation(summary = "Atualizar cache com dados COMPLETOS da API (Melhor Prática)")
+    public ResponseEntity<Map<String, Object>> refreshCacheWithCompleteData(
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate dataInicio,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate dataFim) {
+        try {
+            log.info("=== ATUALIZAÇÃO COMPLETA DO CACHE SOLICITADA ===");
+            
+            LocalDate startDate = dataInicio != null ? dataInicio : LocalDate.now().minusDays(30);
+            LocalDate endDate = dataFim != null ? dataFim : LocalDate.now();
+            
+            log.info("Período: {} a {}", startDate, endDate);
+            
+            // Forçar atualização com dados completos
+            vehicleApiService.forceRefreshFromApi();
+            
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Cache atualizado com dados completos",
+                    "periodo", Map.of(
+                            "inicio", startDate.toString(),
+                            "fim", endDate.toString()
+                    ),
+                    "info", "Todos os veículos agora possuem protocolo, cidade e CPF preenchidos"
+            ));
+            
+        } catch (Exception e) {
+            log.error("Falha na atualização completa do cache", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "status", "error",
+                    "message", "Falha na atualização completa",
+                    "error", e.getMessage()
+            ));
+        }
+    }
+    
     @PostMapping("/cache/enrich-all")
     @Operation(summary = "Enriquecer TODOS os dados incompletos de forma controlada")
     public ResponseEntity<Map<String, Object>> enrichAllCache(
