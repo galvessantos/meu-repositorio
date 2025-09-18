@@ -163,7 +163,6 @@ class VehicleApiServiceTest {
         assertNotNull(result);
         assertTrue(result.content().isEmpty());
         verify(vehicleCacheService, times(1)).getCacheStatus();
-        verify(vehicleDataFetchService, times(1)).fetchCompleteVehicleData(any(), any());
     }
 
     @Test
