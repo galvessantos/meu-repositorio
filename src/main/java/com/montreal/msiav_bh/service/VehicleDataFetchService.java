@@ -54,7 +54,7 @@ public class VehicleDataFetchService {
             log.info("Encontrados {} registros básicos", basicData.size());
             
             // 2. Mapear dados básicos para estrutura inicial
-            Map<String, VehicleEnrichedData> vehicleMap = new ConcurrentHashMap<>();
+            Map<String, VehicleCompleteData> vehicleMap = new ConcurrentHashMap<>();
             
             for (ConsultaNotificationResponseDTO.NotificationData notification : basicData) {
                 processBasicNotification(notification, vehicleMap);
@@ -62,17 +62,17 @@ public class VehicleDataFetchService {
             
             log.info("Mapeados {} veículos únicos", vehicleMap.size());
             
-            // 3. Enriquecer dados em paralelo (batch processing)
-            enrichVehiclesInParallel(vehicleMap);
+            // 3. Buscar dados detalhados em paralelo (batch processing)
+            fetchDetailedDataInParallel(vehicleMap);
             
             // 4. Converter para DTOs finais
-            List<VehicleDTO> enrichedVehicles = vehicleMap.values().stream()
+            List<VehicleDTO> completeVehicles = vehicleMap.values().stream()
                 .map(this::convertToVehicleDTO)
                 .collect(Collectors.toList());
                 
-            log.info("✅ Busca completa finalizada: {} veículos com dados completos", enrichedVehicles.size());
+            log.info("✅ Busca completa finalizada: {} veículos com dados completos", completeVehicles.size());
             
-            return enrichedVehicles;
+            return completeVehicles;
             
         } catch (Exception e) {
             log.error("Erro na busca otimizada de dados: {}", e.getMessage(), e);
@@ -85,7 +85,7 @@ public class VehicleDataFetchService {
      */
     private void processBasicNotification(
             ConsultaNotificationResponseDTO.NotificationData notification,
-            Map<String, VehicleEnrichedData> vehicleMap) {
+            Map<String, VehicleCompleteData> vehicleMap) {
         
         // Extrair dados básicos
         String contrato = extractContrato(notification);
@@ -98,7 +98,7 @@ public class VehicleDataFetchService {
         
         String key = generateKey(contrato, placa);
         
-        VehicleEnrichedData data = vehicleMap.computeIfAbsent(key, k -> new VehicleEnrichedData());
+        VehicleCompleteData data = vehicleMap.computeIfAbsent(key, k -> new VehicleCompleteData());
         
         // Preencher dados básicos
         data.contrato = contrato;
@@ -118,28 +118,28 @@ public class VehicleDataFetchService {
     }
     
     /**
-     * Enriquece veículos em paralelo usando thread pool
+     * Busca dados detalhados dos veículos em paralelo usando thread pool
      */
-    private void enrichVehiclesInParallel(Map<String, VehicleEnrichedData> vehicleMap) {
-        log.info("Iniciando enriquecimento paralelo de {} veículos", vehicleMap.size());
+    private void fetchDetailedDataInParallel(Map<String, VehicleCompleteData> vehicleMap) {
+        log.info("Iniciando busca de dados detalhados em paralelo para {} veículos", vehicleMap.size());
         
         ExecutorService executor = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
         
         try {
             // Dividir em batches para melhor controle
-            List<List<VehicleEnrichedData>> batches = createBatches(
+            List<List<VehicleCompleteData>> batches = createBatches(
                 new ArrayList<>(vehicleMap.values()), BATCH_SIZE
             );
             
             log.info("Dividido em {} batches de até {} veículos", batches.size(), BATCH_SIZE);
             
             for (int i = 0; i < batches.size(); i++) {
-                List<VehicleEnrichedData> batch = batches.get(i);
+                List<VehicleCompleteData> batch = batches.get(i);
                 log.info("Processando batch {}/{}", i + 1, batches.size());
                 
                 List<CompletableFuture<Void>> futures = batch.stream()
                     .map(vehicle -> CompletableFuture.runAsync(
-                        () -> enrichSingleVehicle(vehicle), executor
+                        () -> fetchVehicleDetails(vehicle), executor
                     ))
                     .collect(Collectors.toList());
                 
@@ -153,9 +153,9 @@ public class VehicleDataFetchService {
     }
     
     /**
-     * Enriquece um único veículo com dados detalhados
+     * Busca dados detalhados de um único veículo
      */
-    private void enrichSingleVehicle(VehicleEnrichedData vehicle) {
+    private void fetchVehicleDetails(VehicleCompleteData vehicle) {
         if (vehicle.placa == null || "N/A".equals(vehicle.placa)) {
             return;
         }
@@ -183,19 +183,19 @@ public class VehicleDataFetchService {
                     vehicle.cpfDevedor = detailedData.data().devedores().get(0).cpfCnpj();
                 }
                 
-                log.trace("Veículo enriquecido: placa={}", vehicle.placa);
+                log.trace("Dados detalhados obtidos para veículo: placa={}", vehicle.placa);
             }
             
         } catch (Exception e) {
-            log.warn("Erro ao enriquecer veículo {}: {}", vehicle.placa, e.getMessage());
+            log.warn("Erro ao buscar dados detalhados do veículo {}: {}", vehicle.placa, e.getMessage());
             // Continuar com dados básicos
         }
     }
     
     /**
-     * Converte dados enriquecidos para DTO final
+     * Converte dados completos para DTO final
      */
-    private VehicleDTO convertToVehicleDTO(VehicleEnrichedData data) {
+    private VehicleDTO convertToVehicleDTO(VehicleCompleteData data) {
         return new VehicleDTO(
             null, // ID será gerado pelo banco
             data.credor,
@@ -329,9 +329,9 @@ public class VehicleDataFetchService {
     }
     
     /**
-     * Classe interna para armazenar dados enriquecidos
+     * Classe interna para armazenar dados completos do veículo
      */
-    private static class VehicleEnrichedData {
+    private static class VehicleCompleteData {
         String contrato;
         String placa;
         String credor;
