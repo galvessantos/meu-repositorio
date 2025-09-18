@@ -603,12 +603,19 @@ public class VehicleCacheService {
 
     private VehicleDTO decryptAndMapToDTO(VehicleCache entity) {
         try {
+            // Descriptografar TODOS os campos sensíveis
             String placaDescriptografada = cryptoService.decryptPlaca(entity.getPlaca());
             String contratoDescriptografado = cryptoService.decryptContrato(entity.getContrato());
+            String cidadeDescriptografada = cryptoService.decryptCidade(entity.getCidade());
+            String cpfDescriptografado = cryptoService.decryptCpfDevedor(entity.getCpfDevedor());
+            String protocoloDescriptografado = cryptoService.decryptProtocolo(entity.getProtocolo());
 
-            log.debug("Descriptografando dados - Placa: {} chars, Contrato: {} chars",
+            log.debug("Descriptografando dados - Placa: {} chars, Contrato: {} chars, Cidade: {}, CPF: {}, Protocolo: {}",
                     placaDescriptografada != null ? placaDescriptografada.length() : 0,
-                    contratoDescriptografado != null ? contratoDescriptografado.length() : 0);
+                    contratoDescriptografado != null ? contratoDescriptografado.length() : 0,
+                    cidadeDescriptografada,
+                    cpfDescriptografado != null ? "***" : "N/A",
+                    protocoloDescriptografado);
 
             return new VehicleDTO(
                     entity.getId(),
@@ -618,9 +625,9 @@ public class VehicleCacheService {
                     placaDescriptografada,
                     entity.getModelo(),
                     entity.getUf(),
-                    entity.getCidade(),
-                    entity.getCpfDevedor(),
-                    entity.getProtocolo(),
+                    cidadeDescriptografada,      // ✅ Agora descriptografado
+                    cpfDescriptografado,         // ✅ Agora descriptografado
+                    protocoloDescriptografado,   // ✅ Agora descriptografado
                     entity.getEtapaAtual(),
                     entity.getStatusApreensao(),
                     entity.getUltimaMovimentacao()
