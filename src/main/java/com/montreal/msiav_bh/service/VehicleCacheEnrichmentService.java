@@ -35,7 +35,8 @@ public class VehicleCacheEnrichmentService {
     @Async
     @Transactional
     public CompletableFuture<Void> enrichCacheDataAsync(List<Long> vehicleIds) {
-        log.info("Iniciando enriquecimento assíncrono de {} veículos", vehicleIds.size());
+        log.info("=== INICIANDO ENRIQUECIMENTO ASSÍNCRONO ===");
+        log.info("Total de veículos para enriquecer: {}", vehicleIds.size());
         
         ExecutorService executor = Executors.newFixedThreadPool(MAX_CONCURRENT_REQUESTS);
         
@@ -63,6 +64,8 @@ public class VehicleCacheEnrichmentService {
      */
     private void enrichSingleVehicle(Long vehicleId) {
         try {
+            log.debug("Processando enriquecimento do veículo ID: {}", vehicleId);
+            
             VehicleCache vehicle = vehicleCacheRepository.findById(vehicleId).orElse(null);
             if (vehicle == null) {
                 log.warn("Veículo com ID {} não encontrado no cache", vehicleId);
@@ -76,18 +79,25 @@ public class VehicleCacheEnrichmentService {
             }
             
             String placa = cryptoService.decryptPlaca(vehicle.getPlaca());
-            if (placa == null || "N/A".equals(placa)) {
+            log.debug("Placa descriptografada para veículo {}: {}", vehicleId, placa);
+            
+            if (placa == null || "N/A".equals(placa) || placa.trim().isEmpty()) {
                 log.debug("Veículo {} sem placa válida, não é possível enriquecer", vehicleId);
                 return;
             }
+            
+            log.info("Buscando dados detalhados para veículo {} com placa {}", vehicleId, placa);
             
             // Busca dados detalhados via API
             QueryDetailResponseDTO detailedData = apiQueryService.doSearchContract(placa);
             
             if (detailedData != null && detailedData.success() && detailedData.data() != null) {
+                log.info("Dados detalhados obtidos com sucesso para veículo {}", vehicleId);
                 updateVehicleWithDetailedData(vehicle, detailedData.data());
                 vehicleCacheRepository.save(vehicle);
-                log.debug("Veículo {} enriquecido com sucesso", vehicleId);
+                log.info("✅ Veículo {} enriquecido e salvo com sucesso", vehicleId);
+            } else {
+                log.warn("Não foi possível obter dados detalhados para veículo {} (placa: {})", vehicleId, placa);
             }
             
         } catch (Exception e) {
@@ -112,31 +122,50 @@ public class VehicleCacheEnrichmentService {
      * Atualiza o veículo com os dados detalhados da API
      */
     private void updateVehicleWithDetailedData(VehicleCache vehicle, QueryDetailResponseDTO.Data data) {
+        log.debug("Atualizando dados do veículo ID: {}", vehicle.getId());
+        
         // Atualiza protocolo
         if (data.contrato() != null && data.contrato().protocolo() != null) {
             String protocolo = data.contrato().protocolo();
+            log.debug("Protocolo encontrado: {}", protocolo);
             if (!"N/A".equals(protocolo) && !protocolo.trim().isEmpty()) {
-                vehicle.setProtocolo(cryptoService.encryptProtocolo(protocolo));
-                log.trace("Protocolo atualizado para veículo {}", vehicle.getId());
+                String protocoloCriptografado = cryptoService.encryptProtocolo(protocolo);
+                vehicle.setProtocolo(protocoloCriptografado);
+                log.info("✅ Protocolo atualizado para veículo {}: {} (criptografado: {} chars)", 
+                    vehicle.getId(), protocolo, protocoloCriptografado.length());
             }
+        } else {
+            log.debug("Protocolo não encontrado nos dados detalhados");
         }
         
         // Atualiza cidade (extraída do endereço do credor)
         if (data.credor() != null && data.credor().endereco() != null) {
-            String cidade = extractCityFromAddress(data.credor().endereco());
+            String enderecoCompleto = data.credor().endereco();
+            log.debug("Endereço do credor: {}", enderecoCompleto);
+            String cidade = extractCityFromAddress(enderecoCompleto);
+            log.debug("Cidade extraída: {}", cidade);
             if (!"N/A".equals(cidade)) {
-                vehicle.setCidade(cryptoService.encryptCidade(cidade));
-                log.trace("Cidade atualizada para veículo {}: {}", vehicle.getId(), cidade);
+                String cidadeCriptografada = cryptoService.encryptCidade(cidade);
+                vehicle.setCidade(cidadeCriptografada);
+                log.info("✅ Cidade atualizada para veículo {}: {} (criptografada: {} chars)", 
+                    vehicle.getId(), cidade, cidadeCriptografada.length());
             }
+        } else {
+            log.debug("Endereço do credor não encontrado nos dados detalhados");
         }
         
         // Atualiza CPF do devedor
         if (data.devedores() != null && !data.devedores().isEmpty()) {
             String cpfDevedor = data.devedores().get(0).cpfCnpj();
+            log.debug("CPF do devedor encontrado: {}", cpfDevedor);
             if (cpfDevedor != null && !"N/A".equals(cpfDevedor) && !cpfDevedor.trim().isEmpty()) {
-                vehicle.setCpfDevedor(cryptoService.encryptCpfDevedor(cpfDevedor));
-                log.trace("CPF do devedor atualizado para veículo {}", vehicle.getId());
+                String cpfCriptografado = cryptoService.encryptCpfDevedor(cpfDevedor);
+                vehicle.setCpfDevedor(cpfCriptografado);
+                log.info("✅ CPF do devedor atualizado para veículo {}: {} (criptografado: {} chars)", 
+                    vehicle.getId(), cpfDevedor, cpfCriptografado.length());
             }
+        } else {
+            log.debug("Devedores não encontrados nos dados detalhados");
         }
     }
     
@@ -192,22 +221,32 @@ public class VehicleCacheEnrichmentService {
      */
     @Transactional
     public void enrichIncompleteVehicles() {
-        log.info("Buscando veículos com dados incompletos para enriquecimento");
+        log.info("=== INICIANDO BUSCA DE VEÍCULOS INCOMPLETOS ===");
         
         // Busca veículos sem protocolo, cidade ou CPF
         List<VehicleCache> incompleteVehicles = vehicleCacheRepository.findVehiclesWithIncompleteData();
         
         if (incompleteVehicles.isEmpty()) {
-            log.info("Nenhum veículo com dados incompletos encontrado");
+            log.info("✅ Nenhum veículo com dados incompletos encontrado - cache já está completo!");
             return;
         }
         
-        log.info("Encontrados {} veículos com dados incompletos", incompleteVehicles.size());
+        log.info("📊 Encontrados {} veículos com dados incompletos", incompleteVehicles.size());
+        
+        // Log alguns exemplos
+        incompleteVehicles.stream().limit(5).forEach(v -> {
+            log.debug("Veículo ID {} - Protocolo: {}, Cidade: {}, CPF: {}", 
+                v.getId(), 
+                v.getProtocolo(), 
+                v.getCidade(), 
+                v.getCpfDevedor());
+        });
         
         List<Long> vehicleIds = incompleteVehicles.stream()
                 .map(VehicleCache::getId)
                 .collect(Collectors.toList());
                 
+        log.info("🚀 Iniciando enriquecimento assíncrono de {} veículos", vehicleIds.size());
         enrichCacheDataAsync(vehicleIds);
     }
 }
