@@ -131,6 +131,7 @@ class VehicleApiServiceTest {
         when(vehicleCacheService.getCacheStatus()).thenReturn(null);
         when(vehicleCacheService.getFromCache(any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(vehicleDataFetchService.fetchCompleteVehicleData(any(), any())).thenReturn(List.of());
 
         PageDTO<VehicleDTO> result = vehicleApiService.getVehiclesWithFallback(
                 dataInicio, dataFim, null, null, null, null, null, null,

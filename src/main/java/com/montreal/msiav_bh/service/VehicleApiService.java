@@ -86,20 +86,24 @@ public class VehicleApiService {
             PageDTO<VehicleDTO> databaseResult,
             LocalDate dataInicio,
             LocalDate dataFim) {
+        if (cacheStatus == null) {
+            log.info("Status do cache nulo - buscando da API");
+            return true;
+        }
 
         if (cacheStatus.getTotalRecords() == 0) {
             log.info("Cache vazio - buscando da API");
             return true;
         }
 
-        if (cacheStatus.getMinutesSinceLastSync() > 60 && databaseResult.content().isEmpty()) {
+        if (cacheStatus.getMinutesSinceLastSync() > 60 && databaseResult != null && databaseResult.content().isEmpty()) {
             log.info("Cache desatualizado ({}min) e sem resultados - buscando da API",
                     cacheStatus.getMinutesSinceLastSync());
             return true;
         }
 
         if (dataInicio != null && dataInicio.isAfter(LocalDate.now().minusDays(1)) &&
-                databaseResult.content().isEmpty()) {
+                databaseResult != null && databaseResult.content().isEmpty()) {
             log.info("Busca por período recente sem resultados - verificando API");
             return true;
         }
