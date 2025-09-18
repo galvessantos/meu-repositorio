@@ -138,7 +138,8 @@ public class ApiQueryService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            logger.info("Tentando autenticação na API Montreal - tentativa {}", authRetryCount + 1);
+            logger.info("🔐 Tentando autenticação na API Montreal - URL: {}, User: {}", 
+                url, config.getUsername());
 
             ResponseEntity<ConsultaAuthResponseDTO> response = restTemplate.postForEntity(
                     url,
@@ -148,13 +149,19 @@ public class ApiQueryService {
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 currentToken = response.getBody().data().token();
-
+                
+                // Log do token (apenas primeiros/últimos caracteres por segurança)
+                String tokenPreview = currentToken != null && currentToken.length() > 20 
+                    ? currentToken.substring(0, 10) + "..." + currentToken.substring(currentToken.length() - 10)
+                    : "token inválido";
+                
                 int tokenValiditySeconds = (int) Math.max(config.getTokenRefreshInterval() / 1000 - 300, 3600);
                 tokenExpiration = LocalDateTime.now().plusSeconds(tokenValiditySeconds);
 
                 authRetryCount = 0;
 
-                logger.info("Autenticação bem-sucedida. Token válido até: {}", tokenExpiration);
+                logger.info("✅ Autenticação bem-sucedida. Token: {}, válido até: {}", 
+                    tokenPreview, tokenExpiration);
                 return currentToken;
             }
 
@@ -162,7 +169,8 @@ public class ApiQueryService {
 
         } catch (Exception e) {
             authRetryCount++;
-            logger.error("Falha na autenticação (tentativa {}): {}", authRetryCount, e.getMessage());
+            logger.error("❌ Falha na autenticação (tentativa {}): {} - {}", 
+                authRetryCount, e.getClass().getSimpleName(), e.getMessage());
 
             currentToken = null;
             tokenExpiration = null;
@@ -275,28 +283,66 @@ public class ApiQueryService {
 
     public QueryDetailResponseDTO doSearchContract(String placa) {
         String url = config.getBaseUrl() + "/api/recepcaoContrato/receber";
-        String token = authenticate();
+        
+        // Força renovação do token se estiver próximo de expirar
+        String token;
+        try {
+            token = authenticate();
+            log.info("Token obtido/validado para buscar detalhes da placa: {}", placa);
+        } catch (Exception e) {
+            log.error("Erro ao obter token de autenticação: {}", e.getMessage());
+            // Tenta forçar nova autenticação
+            try {
+                token = authenticateWithRetry(true);
+                log.info("Token renovado com sucesso");
+            } catch (Exception ex) {
+                log.error("Falha definitiva na autenticação: {}", ex.getMessage());
+                throw new RuntimeException("Falha na autenticação com a API: " + ex.getMessage());
+            }
+        }
 
         Map<String, String> body = new HashMap<>();
         body.put("placa", placa);
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(token);  // ✅ Corrigido: usar o token que foi obtido
+        headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(body, headers);
+        
+        log.debug("Fazendo requisição POST para: {} com placa: {}", url, placa);
 
         try {
             ResponseEntity<QueryDetailResponseDTO> response =
                     restTemplate.postForEntity(url, requestEntity, QueryDetailResponseDTO.class);
             
             if (response.getBody() != null) {
-                log.debug("Detalhes obtidos com sucesso para placa: {}", placa);
+                log.info("✅ Detalhes obtidos com sucesso para placa: {}", placa);
                 return response.getBody();
             } else {
                 log.warn("Resposta vazia da API para placa: {}", placa);
                 throw new RuntimeException("Resposta vazia da API");
             }
+        } catch (HttpClientErrorException.Unauthorized e) {
+            log.error("❌ Token rejeitado pela API (401). Tentando renovar token...");
+            // Tenta uma vez mais com token novo
+            try {
+                token = authenticateWithRetry(true);
+                headers.setBearerAuth(token);
+                HttpEntity<Map<String, String>> newRequestEntity = new HttpEntity<>(body, headers);
+                
+                ResponseEntity<QueryDetailResponseDTO> response =
+                        restTemplate.postForEntity(url, newRequestEntity, QueryDetailResponseDTO.class);
+                
+                if (response.getBody() != null) {
+                    log.info("✅ Detalhes obtidos com sucesso após renovar token");
+                    return response.getBody();
+                }
+            } catch (Exception retryEx) {
+                log.error("Falha mesmo após renovar token: {}", retryEx.getMessage());
+                throw new RuntimeException("Autenticação falhou mesmo após renovar token");
+            }
+            throw e;
         } catch (HttpClientErrorException e) {
             log.error("Erro HTTP ao buscar detalhes para placa {}: {} - {}", 
                 placa, e.getStatusCode(), e.getResponseBodyAsString());
