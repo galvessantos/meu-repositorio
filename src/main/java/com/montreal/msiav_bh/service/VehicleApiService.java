@@ -28,6 +28,7 @@ public class VehicleApiService {
     private final ApiQueryService apiQueryService;
     private final VehicleInquiryMapper vehicleInquiryMapper;
     private final VehicleCacheService vehicleCacheService;
+    private final VehicleDataFetchService vehicleDataFetchService;
 
     private static final String CIRCUIT_BREAKER_NAME = "vehicle-api";
 
@@ -50,12 +51,14 @@ public class VehicleApiService {
                     page, size, sortBy, sortDir
             );
 
-            boolean shouldFetchFromApi = shouldFetchFromApiBasedOnCacheState(
-                    cacheStatus, databaseResult, dataInicio, dataFim
-            );
+            boolean shouldFetchFromApi = false;
+
+            if (cacheStatus.getTotalRecords() == 0) {
+                log.warn("Cache vazio - buscando dados iniciais da API");
+                shouldFetchFromApi = true;
+            }
 
             if (shouldFetchFromApi) {
-                log.warn("Condições detectadas para busca da API - cache vazio/desatualizado ou sem resultados");
                 return fetchFromApiAndUpdateCache(dataInicio, dataFim, credor, contrato,
                         protocolo, cpf, uf, cidade, modelo, placa, etapaAtual,
                         statusApreensao, page, size, sortBy, sortDir);
@@ -153,11 +156,8 @@ public class VehicleApiService {
             LocalDate searchEnd = dataFim != null ? dataFim : LocalDate.now();
 
             CompletableFuture<PageDTO<VehicleDTO>> future = CompletableFuture.supplyAsync(() -> {
-                List<ConsultaNotificationResponseDTO.NotificationData> notifications =
-                        apiQueryService.searchByPeriod(searchStart, searchEnd);
-
-                List<VehicleDTO> vehiclesEncrypted = vehicleInquiryMapper.mapToVeiculoDTO(notifications);
-                log.info("Dados da API convertidos e criptografados: {} veículos", vehiclesEncrypted.size());
+                List<VehicleDTO> vehiclesEncrypted = vehicleDataFetchService.fetchCompleteVehicleData(searchStart, searchEnd);
+                log.info("Dados completos obtidos e criptografados: {} veículos", vehiclesEncrypted.size());
 
                 if (!vehiclesEncrypted.isEmpty()) {
                     CacheUpdateContext context = CacheUpdateContext.filteredSearch(
@@ -185,20 +185,17 @@ public class VehicleApiService {
 
     private void updateCacheInBackgroundEncrypted(LocalDate dataInicio, LocalDate dataFim) {
         try {
-            log.debug("Iniciando atualização de cache em background com criptografia");
+            log.debug("Iniciando atualização de cache em background com dados COMPLETOS");
 
             LocalDate searchStart = dataInicio != null ? dataInicio : LocalDate.now().minusDays(30);
             LocalDate searchEnd = dataFim != null ? dataFim : LocalDate.now();
 
-            List<ConsultaNotificationResponseDTO.NotificationData> notifications =
-                    apiQueryService.searchByPeriod(searchStart, searchEnd);
-
-            List<VehicleDTO> vehicles = vehicleInquiryMapper.mapToVeiculoDTO(notifications);
+            List<VehicleDTO> vehicles = vehicleDataFetchService.fetchCompleteVehicleData(searchStart, searchEnd);
 
             if (!vehicles.isEmpty()) {
                 CacheUpdateContext context = CacheUpdateContext.scheduledRefresh(searchStart, searchEnd);
-                vehicleCacheService.updateCacheThreadSafe(vehicles, context); // ✅ Usando thread-safe
-                log.info("Cache atualizado em background com {} registros criptografados", vehicles.size());
+                vehicleCacheService.updateCacheThreadSafe(vehicles, context);
+                log.info("Cache atualizado em background com {} registros COMPLETOS", vehicles.size());
             } else {
                 log.info("Atualização em background: API retornou vazio");
             }
@@ -316,21 +313,19 @@ public class VehicleApiService {
     }
 
     public void forceRefreshFromApi() {
-        log.info("Forçando atualização manual do cache via API");
+        log.info("Forçando atualização manual do cache com dados COMPLETOS");
 
         try {
             LocalDate endDate = LocalDate.now();
             LocalDate startDate = endDate.minusDays(30);
 
-            List<ConsultaNotificationResponseDTO.NotificationData> notifications =
-                    apiQueryService.searchByPeriod(startDate, endDate);
-
-            List<VehicleDTO> vehicles = vehicleInquiryMapper.mapToVeiculoDTO(notifications);
+            List<VehicleDTO> vehicles = vehicleDataFetchService.fetchCompleteVehicleData(startDate, endDate);
 
             if (!vehicles.isEmpty()) {
                 CacheUpdateContext context = CacheUpdateContext.fullRefresh();
                 vehicleCacheService.updateCacheThreadSafe(vehicles, context);
-                log.info("Cache forçadamente atualizado - {} registros", vehicles.size());
+                log.info("Cache atualizado com {} registros COMPLETOS (protocolo, cidade e CPF preenchidos)",
+                        vehicles.size());
             }
 
         } catch (Exception e) {

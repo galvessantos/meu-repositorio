@@ -65,6 +65,7 @@ public class VehicleCacheService {
         refreshInMemoryCache();
     }
 
+
     @Scheduled(fixedRate = 3600000)
     public void cleanupInMemoryCache() {
         long contratoSize = contratoToIdCache.estimatedSize();
@@ -580,6 +581,9 @@ public class VehicleCacheService {
 
         String contratoHash = null;
         String placaHash = null;
+        String protocoloCriptografado = null;
+        String cpfCriptografado = null;
+        String cidadeCriptografada = null;
 
         if (contrato != null && !contrato.trim().isEmpty()) {
             contratoHash = generateHash(contrato.trim());
@@ -589,9 +593,41 @@ public class VehicleCacheService {
             placaHash = generateHash(placa.trim().toUpperCase());
         }
 
+        if (protocolo != null && !protocolo.trim().isEmpty()) {
+            try {
+                protocoloCriptografado = cryptoService.encryptProtocolo(protocolo.trim());
+                log.debug("Protocolo criptografado para busca: {} -> {}",
+                        protocolo, protocoloCriptografado != null ? protocoloCriptografado.substring(0, Math.min(20, protocoloCriptografado.length())) + "..." : "null");
+            } catch (Exception e) {
+                log.error("Erro ao criptografar protocolo para busca: {}", e.getMessage());
+            }
+        }
+
+        if (cpf != null && !cpf.trim().isEmpty()) {
+            try {
+                cpfCriptografado = cryptoService.encryptCpfDevedor(cpf.trim());
+                log.debug("CPF/CNPJ criptografado para busca: {} -> {}",
+                        cpf, cpfCriptografado != null ? cpfCriptografado.substring(0, Math.min(20, cpfCriptografado.length())) + "..." : "null");
+            } catch (Exception e) {
+                log.error("Erro ao criptografar CPF/CNPJ para busca: {}", e.getMessage());
+            }
+        }
+
+        if (cidade != null && !cidade.trim().isEmpty()) {
+            try {
+                cidadeCriptografada = cryptoService.encryptCidade(cidade.trim());
+                log.debug("Cidade criptografada para busca: {} -> {}",
+                        cidade, cidadeCriptografada != null ? cidadeCriptografada.substring(0, Math.min(20, cidadeCriptografada.length())) + "..." : "null");
+            } catch (Exception e) {
+                log.error("Erro ao criptografar cidade para busca: {}", e.getMessage());
+
+                cidadeCriptografada = cidade;
+            }
+        }
+
         Page<VehicleCache> cachedVehicles = vehicleCacheRepository.findWithFiltersFixed(
-                dataInicio, dataFim, credor, contratoHash, protocolo, cpf,
-                uf, cidade, modelo, placaHash, etapaAtual, statusApreensao, pageable
+                dataInicio, dataFim, credor, contratoHash, protocoloCriptografado, cpfCriptografado,
+                uf, cidadeCriptografada, modelo, placaHash, etapaAtual, statusApreensao, pageable
         );
 
         log.info("Dados recuperados do PostgreSQL: {} registros de {} total",
@@ -604,10 +640,16 @@ public class VehicleCacheService {
         try {
             String placaDescriptografada = cryptoService.decryptPlaca(entity.getPlaca());
             String contratoDescriptografado = cryptoService.decryptContrato(entity.getContrato());
+            String cidadeDescriptografada = cryptoService.decryptCidade(entity.getCidade());
+            String cpfDescriptografado = cryptoService.decryptCpfDevedor(entity.getCpfDevedor());
+            String protocoloDescriptografado = cryptoService.decryptProtocolo(entity.getProtocolo());
 
-            log.debug("Descriptografando dados - Placa: {} chars, Contrato: {} chars",
+            log.debug("Descriptografando dados - Placa: {} chars, Contrato: {} chars, Cidade: {}, CPF: {}, Protocolo: {}",
                     placaDescriptografada != null ? placaDescriptografada.length() : 0,
-                    contratoDescriptografado != null ? contratoDescriptografado.length() : 0);
+                    contratoDescriptografado != null ? contratoDescriptografado.length() : 0,
+                    cidadeDescriptografada,
+                    cpfDescriptografado != null ? "***" : "N/A",
+                    protocoloDescriptografado);
 
             return new VehicleDTO(
                     entity.getId(),
@@ -617,9 +659,9 @@ public class VehicleCacheService {
                     placaDescriptografada,
                     entity.getModelo(),
                     entity.getUf(),
-                    entity.getCidade(),
-                    entity.getCpfDevedor(),
-                    entity.getProtocolo(),
+                    cidadeDescriptografada,
+                    cpfDescriptografado,
+                    protocoloDescriptografado,
                     entity.getEtapaAtual(),
                     entity.getStatusApreensao(),
                     entity.getUltimaMovimentacao()
