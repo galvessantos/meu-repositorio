@@ -51,12 +51,19 @@ public class VehicleApiService {
                     page, size, sortBy, sortDir
             );
 
-            boolean shouldFetchFromApi = shouldFetchFromApiBasedOnCacheState(
-                    cacheStatus, databaseResult, dataInicio, dataFim
-            );
-
+            // DECISÃO CLARA: Usar cache ou API?
+            boolean shouldFetchFromApi = false;
+            
+            // Só busca da API se o cache estiver VAZIO
+            if (cacheStatus.getTotalRecords() == 0) {
+                log.warn("Cache vazio - buscando dados iniciais da API");
+                shouldFetchFromApi = true;
+            }
+            
+            // NÃO busca automaticamente se o cache estiver "velho"
+            // Isso deve ser uma decisão consciente via POST /cache/refresh
+            
             if (shouldFetchFromApi) {
-                log.warn("Condições detectadas para busca da API - cache vazio/desatualizado ou sem resultados");
                 return fetchFromApiAndUpdateCache(dataInicio, dataFim, credor, contrato,
                         protocolo, cpf, uf, cidade, modelo, placa, etapaAtual,
                         statusApreensao, page, size, sortBy, sortDir);
