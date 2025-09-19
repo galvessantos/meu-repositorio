@@ -88,6 +88,7 @@ public class UserService {
     private final RefreshTokenService refreshTokenService;
     private final AuthenticationManager authenticationManager;
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    private final UserTokenService userTokenService;
 
     @Autowired(required = false)
     private PasswordHistoryService passwordHistoryService;
@@ -459,6 +460,41 @@ public class UserService {
                     }
                 }
 
+                boolean requiresToken = requiresLoginToken(user);
+                if (requiresToken) {
+                    userTokenService.generateAndPersist(user);
+
+                    AuthResponseDTO.UserDetailsDTO userDetails = AuthResponseDTO.UserDetailsDTO.builder()
+                            .id(user.getId())
+                            .username(user.getUsername())
+                            .email(user.getEmail())
+                            .roles(user.getRoles().stream().map(role -> role.getName().name()).toList())
+                            .cpf(user.getCpf())
+                            .phone(user.getPhone())
+                            .companyId(user.getCompanyId() != null ? user.getCompanyId() : null)
+                            .link(user.getLink())
+                            .tokenTemporary(user.getTokenTemporary())
+                            .tokenExpiredAt(user.getTokenExpiredAt())
+                            .isReset(user.isReset())
+                            .isEnabled(user.isEnabled())
+                            .isCreatedByAdmin(user.isCreatedByAdmin())
+                            .isPasswordChangedByUser(user.isPasswordChangedByUser())
+                            .build();
+
+                    AuthResponseDTO userData = AuthResponseDTO.builder()
+                            .user(userDetails)
+                            .permissions(null)
+                            .functionalities(null)
+                            .build();
+
+                    return JwtResponseDTO.builder()
+                            .accessToken(null)
+                            .token(null)
+                            .userDetails(userData)
+                            .requiresToken(true)
+                            .build();
+                }
+
                 String token = refreshTokenService.getTokenByUserId(user.getId());
                 String accessToken = jwtService.GenerateToken(auth.getUsername());
 
@@ -482,6 +518,7 @@ public class UserService {
                         .isEnabled(user.isEnabled())
                         .isCreatedByAdmin(user.isCreatedByAdmin())
                         .isPasswordChangedByUser(user.isPasswordChangedByUser())
+                        .requiresToken(false)
                         .build();
 
                 List<AuthResponseDTO.PermissionDetailsDTO> permissions;
@@ -557,6 +594,18 @@ public class UserService {
         } catch (Exception e) {
             throw new AuthenticateException(String.format("Falha ao autenticar Usuário %s - Falha: %s", auth.getUsername(), e.getMessage()));
         }
+    }
+
+    private boolean requiresLoginToken(UserInfo user) {
+        boolean requiresFirstLogin = user.getRoles().stream()
+                .anyMatch(r -> Boolean.TRUE.equals(r.getRequiresTokenFirstLogin()));
+        boolean requiresAlways = user.getRoles().stream()
+                .anyMatch(r -> Boolean.TRUE.equals(r.getTokenLogin()));
+
+        boolean firstLogin = !user.isPasswordChangedByUser();
+
+        if (requiresAlways) return true;
+        return requiresFirstLogin && firstLogin;
     }
 
     private void validateUserCreated(UserRequest userRequest) {
