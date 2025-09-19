@@ -2,33 +2,25 @@ package com.montreal.msiav_bh.controller;
 
 import com.montreal.msiav_bh.dto.PageDTO;
 import com.montreal.msiav_bh.dto.VehicleDTO;
-import com.montreal.msiav_bh.dto.response.ContractDetails;
-import com.montreal.msiav_bh.entity.Address;
-import com.montreal.msiav_bh.entity.Contract;
 import com.montreal.msiav_bh.service.ApiQueryService;
 import com.montreal.msiav_bh.service.ContractPersistenceService;
 import com.montreal.msiav_bh.service.VehicleApiService;
 import com.montreal.msiav_bh.service.VehicleCacheService;
-import com.montreal.msiav_bh.utils.exceptions.ValidationMessages;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 @Slf4j
 @RestController
@@ -55,7 +47,7 @@ public class VehicleController {
             @RequestParam(required = false) String credor,
             @RequestParam(required = false) String contrato,
             @RequestParam(required = false) String protocolo,
-            @RequestParam(required = false) @Pattern(regexp = "\\d{11,14}", message = ValidationMessages.CPF_INVALIDO) String cpf,
+            @RequestParam(required = false) String cpf,
             @RequestParam(required = false) String uf,
             @RequestParam(required = false) String cidade,
             @RequestParam(required = false) String modelo,
@@ -71,10 +63,10 @@ public class VehicleController {
         log.info("Requisição recebida - Estratégia: DATABASE-FIRST");
 
         if (protocolo != null || cpf != null) {
-            log.info("🔍 BUSCA ESPECIAL - Protocolo: {}, CPF/CNPJ: {}", protocolo, cpf);
+            log.info("BUSCA ESPECIAL - Protocolo: {}, CPF/CNPJ: {}", protocolo, cpf);
         }
         if (contrato != null || placa != null) {
-            log.info("🔍 BUSCA POR - Contrato: {}, Placa: {}", contrato, placa);
+            log.info("BUSCA POR - Contrato: {}, Placa: {}", contrato, placa);
         }
 
         if (dataInicio == null && dataFim == null) {

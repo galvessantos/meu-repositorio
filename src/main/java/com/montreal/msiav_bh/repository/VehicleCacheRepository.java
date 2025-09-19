@@ -34,6 +34,10 @@ public interface VehicleCacheRepository extends JpaRepository<VehicleCache, Long
 
     List<VehicleCache> findByContratoHashIsNullOrPlacaHashIsNull();
 
+    long countByCpfHashIsNotNullAndProtocoloHashIsNotNull();
+
+    List<VehicleCache> findByCpfHashIsNullOrProtocoloHashIsNull();
+
     List<VehicleCache> findByContratoIsNotNull();
 
     List<VehicleCache> findByPlacaIsNotNull();
@@ -70,8 +74,8 @@ public interface VehicleCacheRepository extends JpaRepository<VehicleCache, Long
             "AND (CAST(:dataFim AS DATE) IS NULL OR v.data_pedido <= CAST(:dataFim AS DATE)) " +
             "AND (CAST(:credor AS VARCHAR) IS NULL OR UPPER(v.credor) LIKE UPPER(CONCAT('%', CAST(:credor AS VARCHAR), '%'))) " +
             "AND (CAST(:contratoHash AS VARCHAR) IS NULL OR v.contrato_hash = CAST(:contratoHash AS VARCHAR)) " +
-            "AND (CAST(:protocolo AS VARCHAR) IS NULL OR v.protocolo = CAST(:protocolo AS VARCHAR)) " +
-            "AND (CAST(:cpf AS VARCHAR) IS NULL OR v.cpf_devedor = CAST(:cpf AS VARCHAR)) " +
+            "AND (CAST(:protocoloHash AS VARCHAR) IS NULL OR v.protocolo_hash = CAST(:protocoloHash AS VARCHAR)) " +
+            "AND (CAST(:cpfHash AS VARCHAR) IS NULL OR v.cpf_hash = CAST(:cpfHash AS VARCHAR)) " +
             "AND (CAST(:uf AS VARCHAR) IS NULL OR v.uf = CAST(:uf AS VARCHAR)) " +
             "AND (CAST(:cidade AS VARCHAR) IS NULL OR v.cidade = CAST(:cidade AS VARCHAR)) " +
             "AND (CAST(:modelo AS VARCHAR) IS NULL OR UPPER(v.modelo) LIKE UPPER(CONCAT('%', CAST(:modelo AS VARCHAR), '%'))) " +
@@ -83,8 +87,8 @@ public interface VehicleCacheRepository extends JpaRepository<VehicleCache, Long
                                             @Param("dataFim") LocalDate dataFim,
                                             @Param("credor") String credor,
                                             @Param("contratoHash") String contratoHash,
-                                            @Param("protocolo") String protocolo,
-                                            @Param("cpf") String cpf,
+                                            @Param("protocoloHash") String protocoloHash,
+                                            @Param("cpfHash") String cpfHash,
                                             @Param("uf") String uf,
                                             @Param("cidade") String cidade,
                                             @Param("modelo") String modelo,

@@ -31,6 +31,9 @@ class VehicleApiServiceTest {
     @Mock
     private VehicleInquiryMapper vehicleInquiryMapper;
 
+    @Mock
+    private VehicleDataFetchService vehicleDataFetchService;
+
     @InjectMocks
     private VehicleApiService vehicleApiService;
 
@@ -51,7 +54,6 @@ class VehicleApiServiceTest {
 
         when(mockCacheStatus.getTotalRecords()).thenReturn(100L);
         when(mockCacheStatus.isValid()).thenReturn(true);
-        when(mockCacheStatus.getMinutesSinceLastSync()).thenReturn(30L);
         when(vehicleCacheService.getCacheStatus()).thenReturn(mockCacheStatus);
         when(vehicleCacheService.getFromCache(any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any())).thenReturn(mockPage);
@@ -83,14 +85,9 @@ class VehicleApiServiceTest {
 
         when(mockCacheStatus.getTotalRecords()).thenReturn(50L);
         when(mockCacheStatus.isValid()).thenReturn(false);
-        when(mockCacheStatus.getMinutesSinceLastSync()).thenReturn(30L);
         when(vehicleCacheService.getCacheStatus()).thenReturn(mockCacheStatus);
         when(vehicleCacheService.getFromCache(any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any())).thenReturn(mockPageWithData);
-
-        lenient().when(apiQueryService.searchByPeriod(any(), any())).thenReturn(List.of());
-        lenient().when(vehicleInquiryMapper.mapToVeiculoDTO(any())).thenReturn(List.of());
-        lenient().doNothing().when(vehicleCacheService).updateCacheThreadSafe(any(), any());
 
         PageDTO<VehicleDTO> result = vehicleApiService.getVehiclesWithFallback(
                 dataInicio, dataFim, null, null, null, null, null, null,
@@ -114,6 +111,7 @@ class VehicleApiServiceTest {
         when(vehicleCacheService.getCacheStatus()).thenReturn(mockCacheStatus);
         when(vehicleCacheService.getFromCache(any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any())).thenReturn(emptyPage);
+        when(vehicleDataFetchService.fetchCompleteVehicleData(any(), any())).thenReturn(List.of());
 
         PageDTO<VehicleDTO> result = vehicleApiService.getVehiclesWithFallback(
                 dataInicio, dataFim, null, null, null, null, null, null,
@@ -131,15 +129,16 @@ class VehicleApiServiceTest {
         LocalDate dataFim = LocalDate.now();
 
         when(vehicleCacheService.getCacheStatus()).thenReturn(null);
+        when(vehicleDataFetchService.fetchCompleteVehicleData(any(), any())).thenReturn(List.of());
 
-        assertThrows(RuntimeException.class, () -> {
-            vehicleApiService.getVehiclesWithFallback(
-                    dataInicio, dataFim, null, null, null, null, null, null,
-                    null, null, null, null, 0, 10, "protocolo", "asc"
-            );
-        });
+        PageDTO<VehicleDTO> result = vehicleApiService.getVehiclesWithFallback(
+                dataInicio, dataFim, null, null, null, null, null, null,
+                null, null, null, null, 0, 10, "protocolo", "asc"
+        );
 
+        assertNotNull(result);
         verify(vehicleCacheService, times(1)).getCacheStatus();
+        verify(vehicleDataFetchService, times(1)).fetchCompleteVehicleData(any(), any());
     }
 
     @Test
@@ -151,11 +150,10 @@ class VehicleApiServiceTest {
         Page<VehicleDTO> emptyPage = new PageImpl<>(List.of());
 
         when(mockCacheStatus.getTotalRecords()).thenReturn(10L);
-        when(mockCacheStatus.getMinutesSinceLastSync()).thenReturn(90L);
         when(vehicleCacheService.getCacheStatus()).thenReturn(mockCacheStatus);
         when(vehicleCacheService.getFromCache(any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any())).thenReturn(emptyPage);
-        when(apiQueryService.searchByPeriod(any(), any())).thenReturn(List.of());
+        when(vehicleDataFetchService.fetchCompleteVehicleData(any(), any())).thenReturn(List.of());
 
         PageDTO<VehicleDTO> result = vehicleApiService.getVehiclesWithFallback(
                 dataInicio, dataFim, null, null, null, null, null, null,
@@ -165,7 +163,6 @@ class VehicleApiServiceTest {
         assertNotNull(result);
         assertTrue(result.content().isEmpty());
         verify(vehicleCacheService, times(1)).getCacheStatus();
-        verify(apiQueryService, times(1)).searchByPeriod(any(), any());
     }
 
     @Test

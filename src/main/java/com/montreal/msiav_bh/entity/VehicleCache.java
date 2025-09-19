@@ -26,7 +26,9 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_api_sync_date", columnList = "api_sync_date"),
                 @Index(name = "idx_contrato_hash", columnList = "contrato_hash"),
                 @Index(name = "idx_placa_hash", columnList = "placa_hash"),
-                @Index(name = "idx_contrato_placa_hash", columnList = "contrato_placa_hash")
+                @Index(name = "idx_contrato_placa_hash", columnList = "contrato_placa_hash"),
+                @Index(name = "idx_cpf_hash", columnList = "cpf_hash"),
+                @Index(name = "idx_protocolo_hash", columnList = "protocolo_hash")
         },
         uniqueConstraints = {
                 @UniqueConstraint(name = "unique_contrato_hash", columnNames = {"contrato_hash"}),
@@ -70,6 +72,12 @@ public class VehicleCache {
 
     @Column(name = "protocolo")
     private String protocolo;
+
+    @Column(name = "cpf_hash", length = 64)
+    private String cpfHash;
+
+    @Column(name = "protocolo_hash", length = 64)
+    private String protocoloHash;
 
     @Column(name = "etapa_atual")
     private String etapaAtual;

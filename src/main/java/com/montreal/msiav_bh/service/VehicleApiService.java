@@ -45,6 +45,13 @@ public class VehicleApiService {
         try {
             VehicleCacheService.CacheStatus cacheStatus = vehicleCacheService.getCacheStatus();
 
+            if (cacheStatus == null) {
+                log.warn("Status do cache não disponível - buscando diretamente da API");
+                return fetchFromApiAndUpdateCache(dataInicio, dataFim, credor, contrato,
+                        protocolo, cpf, uf, cidade, modelo, placa, etapaAtual,
+                        statusApreensao, page, size, sortBy, sortDir);
+            }
+
             PageDTO<VehicleDTO> databaseResult = getFromDatabaseDecrypted(
                     dataInicio, dataFim, credor, contrato, protocolo, cpf,
                     uf, cidade, modelo, placa, etapaAtual, statusApreensao,
