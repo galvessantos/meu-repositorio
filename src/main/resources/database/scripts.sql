@@ -82,17 +82,3 @@ CREATE TABLE SPRING_SESSION_ATTRIBUTES (
                                            CONSTRAINT SPRING_SESSION_ATTRIBUTES_PK PRIMARY KEY (SESSION_PRIMARY_ID, ATTRIBUTE_NAME),
                                            CONSTRAINT SPRING_SESSION_ATTRIBUTES_FK FOREIGN KEY (SESSION_PRIMARY_ID) REFERENCES SPRING_SESSION(PRIMARY_ID) ON DELETE CASCADE
 );
-
--- User login token table
-CREATE TABLE IF NOT EXISTS user_token (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    token VARCHAR(10) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP NOT NULL,
-    is_valid BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT fk_user_token_user FOREIGN KEY (user_id) REFERENCES users (id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_token_user ON user_token(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_token_valid ON user_token(user_id, is_valid);
