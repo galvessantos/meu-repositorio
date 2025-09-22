@@ -518,7 +518,6 @@ public class UserService {
                         .isEnabled(user.isEnabled())
                         .isCreatedByAdmin(user.isCreatedByAdmin())
                         .isPasswordChangedByUser(user.isPasswordChangedByUser())
-                        .requiresToken(false)
                         .build();
 
                 List<AuthResponseDTO.PermissionDetailsDTO> permissions;
