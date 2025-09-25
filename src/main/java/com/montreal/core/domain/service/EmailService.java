@@ -111,6 +111,11 @@ public class EmailService {
         }
     }
 
+    /**
+     * @deprecated Utilize o fluxo de reset por token via PasswordResetService
+     *             (link "/reset-password?token=...") ao invés de expor o ID do usuário.
+     */
+    @Deprecated
     public void sendEmailRegistrationConfirmation(UserInfo userInfo) {
         log.info("Enviando e-mail de confirmação de cadastro para {}", userInfo.getEmail());
         try {
