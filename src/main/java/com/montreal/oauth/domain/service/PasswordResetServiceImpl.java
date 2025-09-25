@@ -73,6 +73,13 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
         return resetLink;
     }
 
+    @Override
+    public String generatePasswordResetLinkWithoutEmail(String login) {
+        log.info("Generating password reset link without email for login: {}", login);
+        String tokenValue = createTokenInTransaction(login);
+        return generateResetLink(tokenValue);
+    }
+
     @Transactional
     private String createTokenInTransaction(String login) {
         log.debug("Creating password reset token in transaction for login: {}", login);
@@ -212,7 +219,7 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
                 userTokenService.generateAndPersist(user);
                 return ResetPasswordResult.builder()
                         .success(true)
-                        .message("Senha definida com sucesso. Token de verificação requerido conforme regras de acesso.")
+                        .message("Senha definida com sucesso.")
                         .build();
             }
 
@@ -221,7 +228,7 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
             } else {
                 return ResetPasswordResult.builder()
                         .success(true)
-                        .message("Senha redefinida com sucesso")
+                        .message("Senha definida com sucesso.")
                         .build();
             }
 

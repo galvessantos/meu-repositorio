@@ -15,6 +15,13 @@ public interface IPasswordResetService {
     String generatePasswordResetToken(String login);
 
     /**
+     * Generates a password reset token WITHOUT sending email and returns the reset link
+     * @param login User's login (username or email)
+     * @return Reset link in the format "{baseUrl}/reset-password?token={token}"
+     */
+    String generatePasswordResetLinkWithoutEmail(String login);
+
+    /**
      * Validates a password reset token
      * @param token The token to validate
      * @return true if token is valid, false otherwise

@@ -160,7 +160,8 @@ public class UserService {
     private void sendEmailWithRollback(UserInfo savedUser) {
         try {
         	savedUser = decryptSensitiveFields(savedUser);
-            passwordResetService.generatePasswordResetToken(savedUser.getUsername());
+            String resetLink = passwordResetService.generatePasswordResetLinkWithoutEmail(savedUser.getUsername());
+            emailService.sendRegistrationEmailWithResetLink(savedUser, resetLink);
         } catch (EmailException e) {
             log.error("Erro ao enviar e-mail de confirmação. Removendo usuário criado.", e);
             userRepository.deleteById(savedUser.getId());
@@ -237,95 +238,7 @@ public class UserService {
         return modelMapper.map(decryptSensitiveFields(userRepository.findByEmail(email)), UserResponse.class);
     }
 
-    public MessageResponse passwordRecovery(String email) {
-        try {
-            Optional<UserInfo> optionalUser = Optional.ofNullable(userRepository.findByEmail(email));
-
-            if (optionalUser.isEmpty()) {
-                return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_NOT_FOUND, "O email não foi encontrado!", this.addSingleObj("erros", "Não foi possível identificar o usuário com o email informado!")).build();
-            }
-            UserInfo user = optionalUser.get();
-            user = decryptSensitiveFields(user);
-            String linkPlain = OffsetDateTime.now().toEpochSecond() +
-                    "," +
-                    user.getId() +
-                    "," +
-                    user.getFullName().replace(" ", "-") +
-                    "," +
-                    user.getEmail() +
-                    "," +
-                    OffsetDateTime.now().toEpochSecond();
-
-            String link = aes.encryptFromString(linkPlain, encryptSecretKey);
-            String linkParse = link.replace("/", "-W-");
-            String linkEmail = "http://localhost:4202/#/home?link=" + linkParse;
-            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-            user.setLink(link);
-            user.setReset(true);
-            user.setResetAt(timestamp);
-
-            userRepository.save(user);
-            emailService.sendEmailFromTemplate(user.getFullName(), linkEmail, user.getEmail());
-
-            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_OK, "Link de recuperação gerado com sucesso!", this.addSingleObj("link", linkParse)).build();
-
-        } catch (CryptoException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new InternalErrorException("Falha ao gerar link de recuperação de senha!", e);
-        }
-    }
-
-    public MessageResponse login(String username, String password) {
-
-        UserInfo user = userRepository.findByUsername(username);
-        user = decryptSensitiveFields(user);
-
-        if ((Optional.ofNullable(user)).isEmpty()) {
-            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_UNAUTHORIZED, "Acesso Negado!", this.addSingleObj("erros", "Não foi possível acessar com os dados informados!")).build();
-        }
-
-        Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, password));
-        if(authentication.isAuthenticated()) {
-            String accessToken;
-            try {
-                accessToken = aes.encryptFromString(jwtService.GenerateToken(username), encryptSecretKey);
-            } catch (Exception e) {
-                throw new NegocioException(ProblemType.ERRO_NEGOCIO, "Erro ao gerar o token de acesso", e);
-            }
-
-            String token = refreshTokenService.getTokenByUserId(user.getId());
-            if(token.isEmpty()) {
-                RefreshToken refreshToken =  refreshTokenService.createRefreshToken(username);
-                token = refreshToken.getToken();
-            }
-
-            var jwtResponseDTO = JwtResponseDTO.builder().accessToken(accessToken).token(token).build();
-            Map<String, List<String>> list = new HashMap<>();
-
-            list.put("token", Collections.singletonList(jwtResponseDTO.getToken()));
-            list.put("accessToken", Collections.singletonList(jwtResponseDTO.getAccessToken()));
-
-            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_OK, "Acesso realizado com sucesso!", list).build();
-        } else {
-            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_UNAUTHORIZED, "Acesso Negado!", this.addSingleObj("erros", "Não foi possível acessar com os dados informados!")).build();
-        }
-    }
-
-    public MessageResponse passwordReset(String password, String email, String link) {
-        UserInfo user = userRepository.findByEmail(email);
-        user = decryptSensitiveFields(user);
-        if ((Optional.ofNullable(user)).isEmpty()) {
-            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_NOT_FOUND, "O email não foi encontrado", this.addSingleObj("erros", "Não foi possível acessar com os dados informados!")).build();
-        }
-        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-        String encodedPassword = encoder.encode(password);
-        user.setPassword(encodedPassword);
-        user.setReset(false);
-        user = encryptSensitiveFields(user);
-        userRepository.save(user);
-        return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_OK, "Link de recuperação gerado com sucesso!", this.addSingleObj("OK", "!")).build();
-    }
+    // Removed legacy passwordRecovery and passwordReset methods (handled by PasswordResetService and controller)
 
     public void update(UserInfo user) {
     	user = encryptSensitiveFields(user);

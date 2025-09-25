@@ -47,6 +47,18 @@ public class EmailService {
         sendEmailWithFallback(to, subject, emailBodyAsHtml);
     }
 
+    public void sendRegistrationEmailWithResetLink(UserInfo userInfo, String resetUrl) {
+        log.info("Enviando e-mail de cadastro com link de reset para {}", userInfo.getEmail());
+        String subject = "Confirmação de Cadastro";
+        String emailBodyAsHtml = EmailComponent.getTemplateEmailNewUser(
+                userInfo.getUsername(),
+                userInfo.getFullName(),
+                resetUrl,
+                uiHubProperties.getUrl() + "login/"
+        );
+        sendEmailWithFallback(userInfo.getEmail(), subject, emailBodyAsHtml);
+    }
+
     public String getTamplate(String templateName, String name, String link) {
 
         StringBuilder headBuilder = new StringBuilder();
