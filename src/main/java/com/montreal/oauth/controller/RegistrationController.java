@@ -7,6 +7,7 @@ import com.montreal.oauth.domain.service.UserService;
 import com.montreal.oauth.domain.service.UserTokenService;
 import com.montreal.oauth.domain.service.JwtService;
 import com.montreal.oauth.domain.service.RefreshTokenService;
+import com.montreal.oauth.domain.service.FirstAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,6 +28,7 @@ public class RegistrationController {
     private final UserTokenService userTokenService;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final FirstAccessService firstAccessService;
 
     @Operation(summary = "Definir senha no primeiro acesso")
     @PostMapping("/first-password")
@@ -70,6 +72,45 @@ public class RegistrationController {
         } catch (Exception e) {
             log.error("Erro ao definir primeira senha", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erro ao definir primeira senha");
+        }
+    }
+
+    @Operation(summary = "Gerar link de primeiro acesso (Admin)")
+    @PostMapping("/first-access/generate/{userId}")
+    public ResponseEntity<?> generateFirstAccessLink(@PathVariable Long userId) {
+        try {
+            UserInfo user = userService.getUserById(userId);
+            String token = firstAccessService.generateFirstAccessToken(user);
+            return ResponseEntity.ok(token);
+        } catch (Exception e) {
+            log.error("Erro ao gerar token de primeiro acesso", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erro ao gerar token de primeiro acesso");
+        }
+    }
+
+    @Operation(summary = "Validar token de primeiro acesso")
+    @GetMapping("/first-access/validate")
+    public ResponseEntity<?> validateFirstAccessToken(@RequestParam String token) {
+        try {
+            var opt = firstAccessService.findByToken(token);
+            boolean valid = opt.isPresent() && opt.get().isValid();
+            return ResponseEntity.ok(valid);
+        } catch (Exception e) {
+            log.error("Erro ao validar token de primeiro acesso", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(false);
+        }
+    }
+
+    @Operation(summary = "Consumir token de primeiro acesso")
+    @PostMapping("/first-access/consume")
+    public ResponseEntity<?> consumeFirstAccessToken(@RequestParam String token) {
+        try {
+            boolean ok = firstAccessService.consumeFirstAccessToken(token);
+            if (!ok) return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(false);
+            return ResponseEntity.ok(true);
+        } catch (Exception e) {
+            log.error("Erro ao consumir token de primeiro acesso", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(false);
         }
     }
 }
