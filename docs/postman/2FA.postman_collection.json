@@ -1,0 +1,302 @@
+{
+  "info": {
+    "_postman_id": "b8a3b2e2-3e3a-4f2a-9d1d-2f6d78c4a1a1",
+    "name": "2FA - Login Token (Primeiro Acesso e Login)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "2FA - Primeiro Acesso",
+      "item": [
+        {
+          "name": "Password Reset - Generate (obter link)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/password-reset/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "password-reset", "generate"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{username}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "if (json && json.resetLink) {",
+                  "  pm.environment.set('resetPasswordLink', json.resetLink);",
+                  "  const parts = json.resetLink.split('token=');",
+                  "  if (parts.length > 1) { pm.environment.set('resetPasswordToken', parts[1]); }",
+                  "}",
+                  "pm.test('Status 200 ou 404 (login inexistente)', function () { pm.expect([200,404]).to.include(pm.response.code); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Password Reset - Validate (checar token de reset)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/password-reset/validate?token={{resetPasswordToken}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "password-reset", "validate"],
+              "query": [ { "key": "token", "value": "{{resetPasswordToken}}" } ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('resetTokenValid', String(json.valid));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Password Reset - Reset (definir senha)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/password-reset/reset",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "password-reset", "reset"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetPasswordToken}}\",\n  \"newPassword\": \"{{newPassword}}\",\n  \"confirmPassword\": \"{{newPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 ou 400', function () { pm.expect([200,400]).to.include(pm.response.code); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('resetSuccess', String(json.success));",
+                  "if (json.accessToken) pm.environment.set('accessToken', json.accessToken);",
+                  "if (json.refreshToken) pm.environment.set('refreshToken', json.refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2FA Token - Generate (debug - cria/mostra token)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/generate-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "generate-token"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}}\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.environment.set('loginToken', json.token);",
+                  "if (json.expiresAt) pm.environment.set('tokenExpiresAt', json.expiresAt);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2FA Token - Validate (primeiro acesso)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/validate-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "validate-token"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"token\": \"{{loginToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 ou 401', function () { pm.expect([200,401]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) { const json = pm.response.json(); if (json.accessToken) pm.environment.set('accessToken', json.accessToken); if (json.token) pm.environment.set('refreshToken', json.token); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2FA - Login",
+      "item": [
+        {
+          "name": "Login (verificar se exige token)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "const requires = json.requiresToken === true; pm.environment.set('requiresToken', String(requires));",
+                  "if (!requires) { if (json.accessToken) pm.environment.set('accessToken', json.accessToken); if (json.token) pm.environment.set('refreshToken', json.token); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2FA Token - Generate (debug - cria/mostra token)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/generate-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "generate-token"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}}\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.environment.set('loginToken', json.token);",
+                  "if (json.expiresAt) pm.environment.set('tokenExpiresAt', json.expiresAt);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "2FA Token - Validate (login)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/validate-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "validate-token"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"token\": \"{{loginToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 ou 401', function () { pm.expect([200,401]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 200) { const json = pm.response.json(); if (json.accessToken) pm.environment.set('accessToken', json.accessToken); if (json.token) pm.environment.set('refreshToken', json.token); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2FA - Casos Negativos",
+      "item": [
+        {
+          "name": "Validate Token - Token inválido",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/validate-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "validate-token"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"token\": \"xxxxx\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Retorna 401 TOKEN_INVALIDO', function () { pm.response.to.have.status(401); const json = pm.response.json(); pm.expect(json.error).to.eql('TOKEN_INVALIDO'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" }
+  ]
+}
+
