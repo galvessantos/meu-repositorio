@@ -184,6 +184,8 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
 
         PasswordResetToken resetToken = tokenOpt.get();
         UserInfo user = resetToken.getUser();
+        // Detecta se trata-se do primeiro cadastro de senha (primeiro acesso)
+        boolean isFirstPasswordDefinition = !user.isPasswordChangedByUser();
 
         try {
             validatePassword(newPassword);
@@ -208,7 +210,7 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
 
             // Após primeiro cadastro de senha, se role exigir token no primeiro login, gere e peça validação
             boolean requiresFirstToken = user.getRoles().stream().anyMatch(r -> Boolean.TRUE.equals(r.getRequiresTokenFirstLogin()));
-            if (requiresFirstToken) {
+            if (requiresFirstToken && isFirstPasswordDefinition) {
                 userTokenService.generateAndPersist(user);
                 return ResetPasswordResult.builder()
                         .success(true)
