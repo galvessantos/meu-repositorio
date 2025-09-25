@@ -56,6 +56,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.montreal.oauth.domain.service.IPasswordResetService;
 
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
@@ -88,6 +89,8 @@ public class UserService {
     private final RefreshTokenService refreshTokenService;
     private final AuthenticationManager authenticationManager;
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    private final UserTokenService userTokenService;
+    private final IPasswordResetService passwordResetService;
 
     @Autowired(required = false)
     private PasswordHistoryService passwordHistoryService;
@@ -134,15 +137,15 @@ public class UserService {
     }
 
     public boolean sendEmailRegister(Long userId) {
-    	log.info("Enviando e-mail de cadastro para o usuário com ID: {}", userId);
+        log.info("Enviando e-mail de cadastro para o usuário com ID: {}", userId);
         try {
-        	Optional<UserInfo> user = userRepository.findById(userId);
+            Optional<UserInfo> user = userRepository.findById(userId);
             if(user.isPresent()) {
-            	sendEmailWithRollback(user.get());
-            	return true;
+                sendEmailWithRollback(user.get());
+                return true;
             }else {
-            	log.error("Nenhum usuário encontrado com ID: {}", userId);
-            	return false;
+                log.error("Nenhum usuário encontrado com ID: {}", userId);
+                return false;
             }
         } catch (EmailException e) {
             log.error("Erro ao enviar e-mail de cadastro para usuário ID {}: {}", userId, e.getMessage(), e);
@@ -156,8 +159,8 @@ public class UserService {
 
     private void sendEmailWithRollback(UserInfo savedUser) {
         try {
-        	savedUser = decryptSensitiveFields(savedUser);
-            emailService.sendEmailRegistrationConfirmation(savedUser);
+            savedUser = decryptSensitiveFields(savedUser);
+            passwordResetService.generatePasswordResetToken(savedUser.getUsername());
         } catch (EmailException e) {
             log.error("Erro ao enviar e-mail de confirmação. Removendo usuário criado.", e);
             userRepository.deleteById(savedUser.getId());
@@ -199,27 +202,27 @@ public class UserService {
     }
 
     public UserInfo getUserInfo() {
-    	try {
-    		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-    		UserDetails userDetail = (UserDetails) authentication.getPrincipal();
-    		String usernameFromAccessToken = userDetail.getUsername();
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            UserDetails userDetail = (UserDetails) authentication.getPrincipal();
+            String usernameFromAccessToken = userDetail.getUsername();
 
-    		Optional<UserInfo> user = userRepository.obterByUsername(usernameFromAccessToken);
-    		if (user.isPresent()) {
-    			return decryptSensitiveFields(user.get());
-    		} else {
-    			log.warn("Usuário com username '{}' não encontrado no banco de dados.", usernameFromAccessToken);
-    			return null;
-    		}
-    	} catch (Exception e) {
-    		log.error("Erro ao tentar recuperar o usuário autenticado: {}", e.getMessage(), e);
-    		return null;
-    	}
+            Optional<UserInfo> user = userRepository.obterByUsername(usernameFromAccessToken);
+            if (user.isPresent()) {
+                return decryptSensitiveFields(user.get());
+            } else {
+                log.warn("Usuário com username '{}' não encontrado no banco de dados.", usernameFromAccessToken);
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Erro ao tentar recuperar o usuário autenticado: {}", e.getMessage(), e);
+            return null;
+        }
     }
 
     public UserInfo getUserInfo(Long id) {
-    	UserInfo user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Veiculo não encontrado"));
-    	return decryptSensitiveFields(user);
+        UserInfo user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Veiculo não encontrado"));
+        return decryptSensitiveFields(user);
     }
 
     public MessageResponse passwordRecoveryValidation(String key, List<String> objects) {
@@ -325,7 +328,7 @@ public class UserService {
     }
 
     public void update(UserInfo user) {
-    	user = encryptSensitiveFields(user);
+        user = encryptSensitiveFields(user);
         userRepository.save(user);
     }
 
@@ -339,12 +342,12 @@ public class UserService {
 
     private void findRoles(UserRequest userRequest) {
         userRequest.getRoles().forEach(role ->
-            roleRepository.findByName(role.getName()).ifPresentOrElse(
-                    foundRole -> role.setId(foundRole.getId()),
-                    () -> {
-                        throw new NegocioException(String.format("Não foi possível encontrar o papel com o nome: %s", role.getName()));
-                    }
-            )
+                roleRepository.findByName(role.getName()).ifPresentOrElse(
+                        foundRole -> role.setId(foundRole.getId()),
+                        () -> {
+                            throw new NegocioException(String.format("Não foi possível encontrar o papel com o nome: %s", role.getName()));
+                        }
+                )
         );
     }
 
@@ -367,15 +370,15 @@ public class UserService {
             }
 
             Set<Role> userRoles = userRequest.getRoles().stream()
-            	    .map(roleRequest -> {
+                    .map(roleRequest -> {
                         Role role = new Role();
-            	        role.setId(roleRequest.getId());
-            	        role.setName(roleRequest.getName());
+                        role.setId(roleRequest.getId());
+                        role.setName(roleRequest.getName());
                         role.setBiometricValidation(roleRequest.getBiometricValidation());
                         role.setRequiresTokenFirstLogin(roleRequest.getRequiresTokenFirstLogin());
-            	        return role;
-            	    })
-            	    .collect(Collectors.toSet());
+                        return role;
+                    })
+                    .collect(Collectors.toSet());
 
             existingUser.setUsername(userRequest.getUsername());
             existingUser.setFullName(userRequest.getFullName());
@@ -424,8 +427,8 @@ public class UserService {
     }
 
     public UserInfo getUserById(Long id) {
-    	UserInfo user = userRepository.findById(id).orElseThrow(() -> new NotFoundException("Usuário não encontrado com ID: " + id));
-    	return decryptSensitiveFields(user);
+        UserInfo user = userRepository.findById(id).orElseThrow(() -> new NotFoundException("Usuário não encontrado com ID: " + id));
+        return decryptSensitiveFields(user);
     }
 
     @Transactional
@@ -457,6 +460,41 @@ public class UserService {
                                 String.format("Empresa %s está inativa e não pode acessar o sistema.", company.getName())
                         );
                     }
+                }
+
+                boolean requiresToken = requiresLoginToken(user);
+                if (requiresToken) {
+                    userTokenService.generateAndPersist(user);
+
+                    AuthResponseDTO.UserDetailsDTO userDetails = AuthResponseDTO.UserDetailsDTO.builder()
+                            .id(user.getId())
+                            .username(user.getUsername())
+                            .email(user.getEmail())
+                            .roles(user.getRoles().stream().map(role -> role.getName().name()).toList())
+                            .cpf(user.getCpf())
+                            .phone(user.getPhone())
+                            .companyId(user.getCompanyId() != null ? user.getCompanyId() : null)
+                            .link(user.getLink())
+                            .tokenTemporary(user.getTokenTemporary())
+                            .tokenExpiredAt(user.getTokenExpiredAt())
+                            .isReset(user.isReset())
+                            .isEnabled(user.isEnabled())
+                            .isCreatedByAdmin(user.isCreatedByAdmin())
+                            .isPasswordChangedByUser(user.isPasswordChangedByUser())
+                            .build();
+
+                    AuthResponseDTO userData = AuthResponseDTO.builder()
+                            .user(userDetails)
+                            .permissions(null)
+                            .functionalities(null)
+                            .build();
+
+                    return JwtResponseDTO.builder()
+                            .accessToken(null)
+                            .token(null)
+                            .userDetails(userData)
+                            .requiresToken(true)
+                            .build();
                 }
 
                 String token = refreshTokenService.getTokenByUserId(user.getId());
@@ -559,6 +597,18 @@ public class UserService {
         }
     }
 
+    private boolean requiresLoginToken(UserInfo user) {
+        boolean requiresFirstLogin = user.getRoles().stream()
+                .anyMatch(r -> Boolean.TRUE.equals(r.getRequiresTokenFirstLogin()));
+        boolean requiresAlways = user.getRoles().stream()
+                .anyMatch(r -> Boolean.TRUE.equals(r.getTokenLogin()));
+
+        boolean firstLogin = !user.isPasswordChangedByUser();
+
+        if (requiresAlways) return true;
+        return requiresFirstLogin && firstLogin;
+    }
+
     private void validateUserCreated(UserRequest userRequest) {
 
         boolean isAdmin = userRequest.getRoles().stream().anyMatch(role -> role.getName() == RoleEnum.ROLE_ADMIN);
@@ -659,8 +709,8 @@ public class UserService {
         }
 
         return users.stream()
-                    .map(this::decryptSensitiveFields)
-                    .collect(Collectors.toList());
+                .map(this::decryptSensitiveFields)
+                .collect(Collectors.toList());
     }
 
     public UserInfo getLoggedInUser() {
@@ -859,25 +909,25 @@ public class UserService {
 
             log.info("Executando query de usuários com SQL: {}", sql);
             List<UserInfo> users = namedParameterJdbcTemplate.query(
-                sql.toString(),
-                new MapSqlParameterSource(params),
-                (rs, rowNum) -> {
-                    UserInfo u = new UserInfo();
-                    u.setId(rs.getLong("id"));
-                    u.setUsername(rs.getString("username"));
-                    u.setEmail(rs.getString("email"));
-                    u.setFullName(rs.getString("fullname"));
-                    u.setCpf(rs.getString("cpf"));
-                    u.setPhone(rs.getString("phone"));
-                    u.setEnabled(rs.getBoolean("is_enabled"));
-                    u.setCompanyId(rs.getString("company_id"));
-                    Set<Role> roles = Arrays.stream(rs.getString("roles_ids")
-                            .split(","))
-                            .map(Role::new)
-                            .collect(Collectors.toSet());
-                    u.setRoles(roles);
-                    return decryptSensitiveFields(u);
-                }
+                    sql.toString(),
+                    new MapSqlParameterSource(params),
+                    (rs, rowNum) -> {
+                        UserInfo u = new UserInfo();
+                        u.setId(rs.getLong("id"));
+                        u.setUsername(rs.getString("username"));
+                        u.setEmail(rs.getString("email"));
+                        u.setFullName(rs.getString("fullname"));
+                        u.setCpf(rs.getString("cpf"));
+                        u.setPhone(rs.getString("phone"));
+                        u.setEnabled(rs.getBoolean("is_enabled"));
+                        u.setCompanyId(rs.getString("company_id"));
+                        Set<Role> roles = Arrays.stream(rs.getString("roles_ids")
+                                        .split(","))
+                                .map(Role::new)
+                                .collect(Collectors.toSet());
+                        u.setRoles(roles);
+                        return decryptSensitiveFields(u);
+                    }
             );
 
             Integer totalResult = namedParameterJdbcTemplate.queryForObject(

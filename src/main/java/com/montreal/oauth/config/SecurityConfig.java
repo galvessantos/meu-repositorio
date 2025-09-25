@@ -58,7 +58,7 @@ public class SecurityConfig {
 //    @Bean
 //    public SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
 //
- //       http.authorizeHttpRequests(auth -> auth
+    //       http.authorizeHttpRequests(auth -> auth
 //                        .requestMatchers("/api/v1/auth/user").permitAll()
 //                        .requestMatchers("/api/v1/auth/login").permitAll()
 //                        .requestMatchers("/api/v1/auth/refresh-token").permitAll()
@@ -75,7 +75,7 @@ public class SecurityConfig {
 //                .cors(withDefaults())
 //        ;
 //
- //       return http.build();
+    //       return http.build();
 //    }
 
     @Bean
@@ -118,7 +118,7 @@ public class SecurityConfig {
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
-    
+
 //    @Bean
 //    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 //        http
@@ -129,25 +129,23 @@ public class SecurityConfig {
 //            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 //        return http.build();
 //    }
-    
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                // Endpoints públicos
-                .requestMatchers("/api/v1/auth/**").permitAll()
-                .requestMatchers("/api/auth/password-reset/**").permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
-                .requestMatchers("/actuator/**").permitAll()
-                // Todo o resto exige autenticação
-                .anyRequest().authenticated()
-            )
-            .exceptionHandling(handle -> handle.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-            .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .cors(withDefaults());
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/auth/password-reset/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .exceptionHandling(handle -> handle.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .cors(withDefaults());
 
         return http.build();
     }

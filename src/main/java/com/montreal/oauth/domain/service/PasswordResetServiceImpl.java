@@ -37,6 +37,7 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
     private final CompanyRepository companyRepository;
     private final UserService userService;
     private final EmailService emailService;
+    private final UserTokenService userTokenService;
 
     @Autowired(required = false)
     private PasswordHistoryService passwordHistoryService;
@@ -204,6 +205,15 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
             markTokenAsUsed(token);
 
             log.info("Password reset successfully for user: {}", user.getUsername());
+
+            boolean requiresFirstToken = user.getRoles().stream().anyMatch(r -> Boolean.TRUE.equals(r.getRequiresTokenFirstLogin()));
+            if (requiresFirstToken) {
+                userTokenService.generateAndPersist(user);
+                return ResetPasswordResult.builder()
+                        .success(true)
+                        .message("Senha definida com sucesso. Token de verificação requerido conforme regras de acesso.")
+                        .build();
+            }
 
             if (autoLoginAfterReset) {
                 return generateAutoLoginTokens(user);
