@@ -11,6 +11,7 @@ import com.montreal.oauth.domain.repository.IUserRepository;
 import com.montreal.oauth.domain.enumerations.RoleEnum;
 import com.montreal.msiav_bh.entity.Company;
 import com.montreal.msiav_bh.repository.CompanyRepository;
+import com.montreal.core.utils.PostgresCryptoUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
     private final CompanyRepository companyRepository;
     private final EmailService emailService;
     private final UserTokenService userTokenService;
+    private final PostgresCryptoUtil postgresCryptoUtil;
 
     @Autowired(required = false)
     private PasswordHistoryService passwordHistoryService;
@@ -277,6 +279,8 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
         try {
             log.info("Generating auto-login tokens for user: {}", user.getUsername());
 
+            user = decryptForResponse(user);
+
             boolean isAdmin = user.getRoles().stream()
                     .anyMatch(role -> RoleEnum.ROLE_ADMIN.equals(role.getName()));
 
@@ -320,6 +324,45 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
                     .message("Senha redefinida com sucesso, mas houve erro no login automático. Faça login manualmente.")
                     .build();
         }
+    }
+
+    private UserInfo decryptForResponse(UserInfo user) {
+        if (user == null) {
+            return null;
+        }
+
+        UserInfo copy = new UserInfo();
+        copy.setId(user.getId());
+        copy.setUsername(user.getUsername());
+        copy.setPassword(user.getPassword());
+        copy.setFullName(user.getFullName());
+        copy.setEmail(user.getEmail());
+        copy.setEnabled(user.isEnabled());
+        copy.setRoles(user.getRoles());
+        copy.setCompanyId(user.getCompanyId());
+        copy.setCreatedByAdmin(user.isCreatedByAdmin());
+        copy.setPasswordChangedByUser(user.isPasswordChangedByUser());
+        copy.setLink(user.getLink());
+        copy.setReset(user.isReset());
+        copy.setResetAt(user.getResetAt());
+        copy.setTokenTemporary(user.getTokenTemporary());
+        copy.setTokenExpiredAt(user.getTokenExpiredAt());
+
+        try {
+            if (user.getCpf() != null) {
+                copy.setCpf(postgresCryptoUtil.decrypt(user.getCpf()));
+            }
+        } catch (Exception e) {
+            copy.setCpf(null);
+        }
+        try {
+            if (user.getPhone() != null) {
+                copy.setPhone(postgresCryptoUtil.decrypt(user.getPhone()));
+            }
+        } catch (Exception e) {
+            copy.setPhone(null);
+        }
+        return copy;
     }
 
     private LoginResponseDTO buildUserDetails(UserInfo user, boolean isAdmin) {
