@@ -191,6 +191,7 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
 
         PasswordResetToken resetToken = tokenOpt.get();
         UserInfo user = resetToken.getUser();
+        boolean wasFirstAccess = !user.isPasswordChangedByUser();
 
         try {
             validatePassword(newPassword);
@@ -213,7 +214,18 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
 
             log.info("Password reset successfully for user: {}", user.getUsername());
 
-            // Política atual: após redefinir via e-mail, não exigir 2FA; realizar auto-login sempre
+            // Política atual:
+            // - Primeiro acesso: se role exigir token no primeiro login, não faz auto-login aqui; gera token e retorna sucesso sem tokens
+            // - Reset de senha via e-mail: auto-login (sem exigir 2FA aqui)
+            boolean requiresFirstToken = user.getRoles().stream().anyMatch(r -> Boolean.TRUE.equals(r.getRequiresTokenFirstLogin()));
+            if (wasFirstAccess && requiresFirstToken) {
+                userTokenService.generateAndPersist(user);
+                return ResetPasswordResult.builder()
+                        .success(true)
+                        .message("Senha definida com sucesso.")
+                        .build();
+            }
+
             return generateAutoLoginTokens(user);
 
         } catch (IllegalArgumentException e) {
