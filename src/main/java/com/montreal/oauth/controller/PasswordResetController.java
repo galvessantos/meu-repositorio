@@ -204,9 +204,19 @@ public class PasswordResetController {
         try {
             boolean isValid = passwordResetService.validatePasswordResetToken(token);
 
+            Boolean firstAccess = null;
+            if (isValid) {
+                var opt = passwordResetService.findByToken(token);
+                if (opt.isPresent()) {
+                    var user = opt.get().getUser();
+                    firstAccess = (user != null) ? !user.isPasswordChangedByUser() : null;
+                }
+            }
+
             PasswordResetValidateResponse response = PasswordResetValidateResponse.builder()
                     .valid(isValid)
                     .message(isValid ? "Token is valid" : "Token is invalid or expired")
+                    .firstAccess(firstAccess)
                     .build();
 
             log.debug("Password reset token validation completed. Valid: {}", isValid);

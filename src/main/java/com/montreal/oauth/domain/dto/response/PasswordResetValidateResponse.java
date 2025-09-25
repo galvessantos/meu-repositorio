@@ -27,4 +27,10 @@ public class PasswordResetValidateResponse {
             example = "Token is valid"
     )
     private String message;
+
+    @Schema(
+            description = "Indica se é primeiro acesso (usuário nunca definiu senha)",
+            example = "true"
+    )
+    private Boolean firstAccess;
 }
