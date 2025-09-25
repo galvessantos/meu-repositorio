@@ -48,4 +48,11 @@ public class PasswordResetResponse {
             nullable = true
     )
     private LoginResponseDTO userDetails;
+
+    @Schema(
+            description = "Indica se o usuário deve validar token (2FA) após definir a senha",
+            example = "true",
+            nullable = true
+    )
+    private Boolean requiresToken;
 }
