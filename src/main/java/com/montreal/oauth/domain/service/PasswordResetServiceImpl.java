@@ -213,25 +213,8 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
 
             log.info("Password reset successfully for user: {}", user.getUsername());
 
-            // Após definir/redefinir a senha, se role exigir token no primeiro login OU sempre exigir token (tokenLogin), gere e peça validação
-            boolean requiresFirstToken = user.getRoles().stream().anyMatch(r -> Boolean.TRUE.equals(r.getRequiresTokenFirstLogin()));
-            boolean requiresAlwaysToken = user.getRoles().stream().anyMatch(r -> Boolean.TRUE.equals(r.getTokenLogin()));
-            if (requiresFirstToken || requiresAlwaysToken) {
-                userTokenService.generateAndPersist(user);
-                return ResetPasswordResult.builder()
-                        .success(true)
-                        .message("Senha definida com sucesso.")
-                        .build();
-            }
-
-            if (autoLoginAfterReset) {
-                return generateAutoLoginTokens(user);
-            } else {
-                return ResetPasswordResult.builder()
-                        .success(true)
-                        .message("Senha definida com sucesso.")
-                        .build();
-            }
+            // Política atual: após redefinir via e-mail, não exigir 2FA; realizar auto-login sempre
+            return generateAutoLoginTokens(user);
 
         } catch (IllegalArgumentException e) {
             log.warn("Password validation failed: {}", e.getMessage());
