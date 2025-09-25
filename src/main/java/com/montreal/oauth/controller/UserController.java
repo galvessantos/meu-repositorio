@@ -1,10 +1,7 @@
 package com.montreal.oauth.controller;
 
-import java.sql.Timestamp;
 import java.time.OffsetDateTime;
-import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import com.montreal.core.domain.dto.CheckUserNameDTO;
@@ -13,30 +10,23 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import com.montreal.core.domain.dto.response.MessageResponse;
-import com.montreal.core.domain.enumerations.MessageTypeEnum;
 import com.montreal.core.domain.exception.NegocioException;
 import com.montreal.core.domain.service.EmailService;
 import com.montreal.core.domain.service.ValidationService;
 import com.montreal.core.exception_handler.ProblemType;
 import com.montreal.oauth.domain.dto.AuthRequestDTO;
-import com.montreal.oauth.domain.dto.CheckPasswordResetDTO;
 import com.montreal.oauth.domain.dto.JwtResponseDTO;
 import com.montreal.oauth.domain.dto.RefreshTokenRequestDTO;
-import com.montreal.oauth.domain.dto.request.PasswordChangeRequest;
 import com.montreal.oauth.domain.dto.request.UserRequest;
 import com.montreal.oauth.domain.dto.response.PassRecoveryResponse;
 import com.montreal.oauth.domain.dto.response.UserResponse;
@@ -64,7 +54,7 @@ import lombok.extern.slf4j.Slf4j;
 @Tag(name = "Usuário", description = "Gerenciamento de usuários.")
 public class UserController {
 
-	public static final String PASSWORD_RECOVERY_TITLE 	= "recuperação de senha";
+    public static final String PASSWORD_RECOVERY_TITLE 	= "recuperação de senha";
     public static final String REQUEST_FAILED_MESSAGE 	= "Requisição realizada com falha";
     public static final String EMAIL_VERIFICATION_TITLE = "verificação de email cadastrado";
     public static final String REQUEST_SUCCESS_MESSAGE 	= "Requisição Realizada com Sucesso";
@@ -76,12 +66,11 @@ public class UserController {
     private final IUserRepository iUserRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
-    
+
     @Operation(summary = "Cadastrar usuário")
     @PostMapping("/auth/user")
     public UserResponse saveUser(@RequestBody @Valid UserRequest userRequest) {
-    	UserResponse savedUser =  userService.saveUser(userRequest);
-    	return savedUser;
+        return userService.saveUser(userRequest);
     }
 
     @Operation(summary = "Enviar e-mail de cadastro de usuário pelo ID")
@@ -185,91 +174,6 @@ public class UserController {
                             .accessToken(accessToken)
                             .token(refreshTokenRequestDTO.getToken()).build();
                 }).orElseThrow(() -> new NegocioException(ProblemType.RECURSO_NAO_ENCONTRADO, "Refresh Token não está no banco de dados"));
-    }
-
-    @Operation(summary = "Verificar usuário", hidden = true)
-    @PostMapping("/auth/check-user-email")
-    public ResponseEntity<CheckUserNameDTO> checkUserName(@RequestBody CheckUserNameDTO checkUserName) {
-
-        Set<ConstraintViolation<CheckUserNameDTO>> violations = getConstraintViolations(checkUserName);
-
-        if (!violations.isEmpty()) {
-            List<String> errorMessages = violations.stream().map(ConstraintViolation::getMessage).toList();
-            return new ResponseEntity<>(getCheckUsernameResponseError(errorMessages.toString()), HttpStatus.BAD_REQUEST);
-        }
-
-        String userName = checkUserName.getUserName();
-        UserInfo userInfo = iUserRepository.findByUsername(userName);
-        userInfo = userService.decryptSensitiveFields(userInfo);
-        
-        if (Optional.ofNullable(userInfo).isEmpty()) {
-            return new ResponseEntity<>(getCheckUsernameResponseError("Usuário não encontrado"), HttpStatus.BAD_REQUEST);
-        }
-
-        return new ResponseEntity<>(HttpStatus.ACCEPTED);
-    }
-
-
-    @Operation(summary = "Recuperação de senha", hidden = true)
-    @PostMapping("/auth/password-recovery")
-    public ResponseEntity<?> passwordRecovery(@RequestBody CheckUserNameDTO checkUserName) throws Exception {
-
-        Set<ConstraintViolation<CheckUserNameDTO>> violations = getConstraintViolations(checkUserName);
-
-        if (!violations.isEmpty()) {
-            List<String> errorMessages = violations.stream().map(ConstraintViolation::getMessage).toList();
-            return new ResponseEntity<>(getCheckUsernameResponseError(errorMessages.toString()), HttpStatus.BAD_REQUEST);
-        }
-
-        String userName = checkUserName.getUserName();
-        UserInfo userInfo = iUserRepository.findByUsername(userName);
-
-        if ((Optional.ofNullable(iUserRepository.findByUsername(userName))).isEmpty()) {
-            return new ResponseEntity<>(getCheckUsernameResponseError("Usuário não encontrado"), HttpStatus.BAD_REQUEST);
-        }
-
-        String linkPlain = OffsetDateTime.now()
-                .toEpochSecond() + "," +
-                userInfo.getId().toString() + "," +
-                userInfo.getFullName().replace(" ", "-") + "," +
-                userInfo.getEmail() + "," +
-                OffsetDateTime.now().toEpochSecond();
-
-        String link = linkPlain;
-        String linkParse = link.replace("/", "-W-");
-        String linkEmail = "http://localhost:4002/reset-password?link=" + linkParse;
-        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-        userInfo.setLink(link);
-        userInfo.setReset(true);
-        userInfo.setResetAt(timestamp);
-        
-        userService.update(userInfo);
-        emailService.sendEmailFromTemplate(userInfo.getFullName(), linkEmail, userInfo.getEmail());
-        List<PassRecoveryResponse.Object> objects = Collections.singletonList(PassRecoveryResponse.Object.builder().link(linkParse).build());
-
-        return new ResponseEntity<>(getPassRecoveryResponseSuccess(objects, "Link de recuperação gerado com sucesso"), HttpStatus.ACCEPTED);
-    }
-
-    @Operation(summary = "Resetar senha", hidden = true)
-    @PostMapping("/password-reset")
-    public ResponseEntity<?> passwordReset(@RequestBody CheckPasswordResetDTO checkPassword) {
-        Set<ConstraintViolation<CheckPasswordResetDTO>> violations = validation.getValidator().validate(checkPassword);
-        if (!violations.isEmpty()) {
-            List<String> objects = violations.stream().map(ConstraintViolation::getMessage).toList();
-            MessageResponse msgResponse = userService.messageList("erros", objects, MessageTypeEnum.MSG_BAD_REQUEST, "A senha está mal formatada ou não foi informada!");
-            return new ResponseEntity<>(msgResponse, HttpStatusCode.valueOf(msgResponse.getStatus()));
-        } else {
-            String encodedPassword = passwordEncoder.encode(checkPassword.getPassword());
-            MessageResponse msgResponse = userService.passwordReset(encodedPassword, checkPassword.getEmail(), checkPassword.getLink());
-            return new ResponseEntity<>(msgResponse, HttpStatusCode.valueOf(msgResponse.getStatus()));
-        }
-    }
-
-    @Operation(summary = "Finalizar Cadastro de usuário")
-    @ResponseStatus(HttpStatus.OK)
-    @PostMapping("/auth/user/complete-registration/{idUser}")
-    public UserResponse completeRegistration(@PathVariable Long idUser) {
-        return userService.completeRegistration(idUser);
     }
 
     private Set<ConstraintViolation<CheckUserNameDTO>> getConstraintViolations(CheckUserNameDTO checkUserNameDTO) {

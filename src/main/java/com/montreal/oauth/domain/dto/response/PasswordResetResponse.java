@@ -1,6 +1,5 @@
 package com.montreal.oauth.domain.dto.response;
 
-import com.montreal.oauth.domain.dto.response.LoginResponseDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -48,4 +47,11 @@ public class PasswordResetResponse {
             nullable = true
     )
     private LoginResponseDTO userDetails;
+
+    @Schema(
+            description = "Indica se o usuário deve validar token (2FA) após definir a senha",
+            example = "true",
+            nullable = true
+    )
+    private Boolean requiresToken;
 }

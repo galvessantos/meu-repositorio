@@ -369,6 +369,7 @@ public class PasswordResetController {
                         .accessToken(result.getAccessToken())
                         .refreshToken(result.getRefreshToken())
                         .userDetails(result.getUserDetails())
+                        .requiresToken(false)
                         .build();
 
                 log.info("Password reset completed successfully with auto-login: {}",

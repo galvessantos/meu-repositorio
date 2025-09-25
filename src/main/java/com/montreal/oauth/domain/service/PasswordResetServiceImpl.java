@@ -73,6 +73,13 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
         return resetLink;
     }
 
+    @Override
+    public String generatePasswordResetLinkWithoutEmail(String login) {
+        log.info("Generating password reset link without email for login: {}", login);
+        String tokenValue = createTokenInTransaction(login);
+        return generateResetLink(tokenValue);
+    }
+
     @Transactional
     private String createTokenInTransaction(String login) {
         log.debug("Creating password reset token in transaction for login: {}", login);
@@ -206,23 +213,7 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
 
             log.info("Password reset successfully for user: {}", user.getUsername());
 
-            boolean requiresFirstToken = user.getRoles().stream().anyMatch(r -> Boolean.TRUE.equals(r.getRequiresTokenFirstLogin()));
-            if (requiresFirstToken) {
-                userTokenService.generateAndPersist(user);
-                return ResetPasswordResult.builder()
-                        .success(true)
-                        .message("Senha definida com sucesso. Token de verificação requerido conforme regras de acesso.")
-                        .build();
-            }
-
-            if (autoLoginAfterReset) {
-                return generateAutoLoginTokens(user);
-            } else {
-                return ResetPasswordResult.builder()
-                        .success(true)
-                        .message("Senha redefinida com sucesso")
-                        .build();
-            }
+            return generateAutoLoginTokens(user);
 
         } catch (IllegalArgumentException e) {
             log.warn("Password validation failed: {}", e.getMessage());

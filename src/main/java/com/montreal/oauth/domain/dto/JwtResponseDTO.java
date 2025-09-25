@@ -15,4 +15,5 @@ public class JwtResponseDTO {
     private String token;
     private AuthResponseDTO userDetails;
     private Boolean requiresToken;
+
 }

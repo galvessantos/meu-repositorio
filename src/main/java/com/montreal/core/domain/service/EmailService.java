@@ -12,12 +12,10 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,6 +45,18 @@ public class EmailService {
         sendEmailWithFallback(to, subject, emailBodyAsHtml);
     }
 
+    public void sendRegistrationEmailWithResetLink(UserInfo userInfo, String resetUrl) {
+        log.info("Enviando e-mail de cadastro com link de reset para {}", userInfo.getEmail());
+        String subject = "Confirmação de Cadastro";
+        String emailBodyAsHtml = EmailComponent.getTemplateEmailNewUser(
+                userInfo.getUsername(),
+                userInfo.getFullName(),
+                resetUrl,
+                uiHubProperties.getUrl() + "login/"
+        );
+        sendEmailWithFallback(userInfo.getEmail(), subject, emailBodyAsHtml);
+    }
+
     public String getTamplate(String templateName, String name, String link) {
 
         StringBuilder headBuilder = new StringBuilder();
@@ -74,8 +84,6 @@ public class EmailService {
             inContent.close();
             inFooter.close();
 
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -111,6 +119,11 @@ public class EmailService {
         }
     }
 
+    /**
+     * @deprecated Utilize o fluxo de reset por token via PasswordResetService
+     *             (link "/reset-password?token=...") ao invés de expor o ID do usuário.
+     */
+    @Deprecated
     public void sendEmailRegistrationConfirmation(UserInfo userInfo) {
         log.info("Enviando e-mail de confirmação de cadastro para {}", userInfo.getEmail());
         try {
@@ -128,13 +141,11 @@ public class EmailService {
 
     private void sendEmailWithFallback(String to, String subject, String htmlBody) {
         try {
-            // Tenta enviar com o serviço principal (SgdBroker)
             log.info("Tentando enviar e-mail para {} via SgdBrokerService.", to);
             var digitalSendRequest = sgdBrokerComponent.createTypeEmail(subject, htmlBody, to);
             var digitalSendResponse = sgdBrokerService.sendNotification(digitalSendRequest);
             log.info("E-mail enviado com sucesso para {} via SgdBrokerService. Código de envio: {}", to, digitalSendResponse.getSendId());
         } catch (ClientServiceException | SgdBrokenException ex) {
-            // Se o serviço principal falhar, usa o fallback (JavaMailSender)
             log.warn("Falha ao enviar e-mail via SgdBrokerService: {}. Tentando fallback com JavaMailSender.", ex.getMessage());
             try {
                 MimeMessage message = mailSender.createMimeMessage();
