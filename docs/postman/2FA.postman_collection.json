@@ -6,55 +6,22 @@
   },
   "item": [
     {
-      "name": "2FA - Primeiro Acesso",
+      "name": "2FA - Primeiro Acesso (Cadastro de Senha)",
       "item": [
         {
-          "name": "Password Reset - Generate (obter link)",
+          "name": "First Password - Definir senha",
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
             "url": {
-              "raw": "{{baseUrl}}/api/auth/password-reset/generate",
+              "raw": "{{baseUrl}}/api/v1/auth/first-password",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "password-reset", "generate"]
+              "path": ["api", "v1", "auth", "first-password"]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"login\": \"{{username}}\"\n}",
+              "raw": "{\n  \"userId\": {{userId}},\n  \"password\": \"{{newPassword}}\",\n  \"passwordConfirmation\": \"{{newPassword}}\"\n}",
               "options": { "raw": { "language": "json" } }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "let json = {};",
-                  "try { json = pm.response.json(); } catch (e) {}",
-                  "if (json && json.resetLink) {",
-                  "  pm.environment.set('resetPasswordLink', json.resetLink);",
-                  "  const parts = json.resetLink.split('token=');",
-                  "  if (parts.length > 1) { pm.environment.set('resetPasswordToken', parts[1]); }",
-                  "}",
-                  "pm.test('Status 200 ou 404 (login inexistente)', function () { pm.expect([200,404]).to.include(pm.response.code); });"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Password Reset - Validate (checar token de reset)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/password-reset/validate?token={{resetPasswordToken}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "password-reset", "validate"],
-              "query": [ { "key": "token", "value": "{{resetPasswordToken}}" } ]
             }
           },
           "event": [
@@ -64,39 +31,7 @@
                 "exec": [
                   "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
                   "const json = pm.response.json();",
-                  "pm.environment.set('resetTokenValid', String(json.valid));"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ]
-        },
-        {
-          "name": "Password Reset - Reset (definir senha)",
-          "request": {
-            "method": "POST",
-            "header": [ { "key": "Content-Type", "value": "application/json" } ],
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/password-reset/reset",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "password-reset", "reset"]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token\": \"{{resetPasswordToken}}\",\n  \"newPassword\": \"{{newPassword}}\",\n  \"confirmPassword\": \"{{newPassword}}\"\n}",
-              "options": { "raw": { "language": "json" } }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200 ou 400', function () { pm.expect([200,400]).to.include(pm.response.code); });",
-                  "const json = pm.response.json();",
-                  "pm.environment.set('resetSuccess', String(json.success));",
-                  "if (json.accessToken) pm.environment.set('accessToken', json.accessToken);",
-                  "if (json.refreshToken) pm.environment.set('refreshToken', json.refreshToken);"
+                  "const requires = json.requiresToken === true; pm.environment.set('requiresToken', String(requires));"
                 ],
                 "type": "text/javascript"
               }
