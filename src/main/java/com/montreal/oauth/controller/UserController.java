@@ -189,12 +189,7 @@ public class UserController {
 
     // Removed obsolete endpoints: check-user-email, password-recovery, legacy password-reset
 
-    @Operation(summary = "Finalizar Cadastro de usuário")
-    @ResponseStatus(HttpStatus.OK)
-    @PostMapping("/auth/user/complete-registration/{idUser}")
-    public UserResponse completeRegistration(@PathVariable Long idUser) {
-        return userService.completeRegistration(idUser);
-    }
+    // Removed obsolete complete-registration endpoint
 
     private Set<ConstraintViolation<CheckUserNameDTO>> getConstraintViolations(CheckUserNameDTO checkUserNameDTO) {
         return validation.getValidator().validate(checkUserNameDTO);

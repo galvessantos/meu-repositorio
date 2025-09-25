@@ -567,26 +567,7 @@ public class UserService {
                 .anyMatch(decrypted -> decrypted.equals(rawCpf));
     }
 
-    public UserResponse completeRegistration(Long idUser) {
-        log.info("Completando registro para usuário com ID: {}", idUser);
-        try {
-            var user = getUserById(idUser);
-
-            user.setPasswordChangedByUser(true);
-            user.setEnabled(true);
-            user.setTokenTemporary(null);
-            user.setTokenExpiredAt(null);
-            user = encryptSensitiveFields(user);
-            var userSaved = userRepository.save(user);
-            userSaved = decryptSensitiveFields(userSaved);
-            return IUserMapper.INSTANCE.toResponse(userSaved);
-        } catch (NotFoundException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("Erro ao completar o registro do usuário", e);
-            throw new InternalErrorException("Falha ao completar o registro do usuário");
-        }
-    }
+    // Removed obsolete completeRegistration method
 
     private void validatePassword(String password) {
         log.info("Validando critérios da senha");
