@@ -206,13 +206,13 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
 
             log.info("Password reset successfully for user: {}", user.getUsername());
 
-            // Após primeiro cadastro de senha, se role exigir token no primeiro login, gere e peça validação
+            // Após definir/redefinir a senha, se role exigir token no primeiro login, gere e peça validação
             boolean requiresFirstToken = user.getRoles().stream().anyMatch(r -> Boolean.TRUE.equals(r.getRequiresTokenFirstLogin()));
             if (requiresFirstToken) {
                 userTokenService.generateAndPersist(user);
                 return ResetPasswordResult.builder()
                         .success(true)
-                        .message("Senha redefinida com sucesso. Token de verificação requerido no primeiro acesso.")
+                        .message("Senha definida com sucesso. Token de verificação requerido conforme regras de acesso.")
                         .build();
             }
 

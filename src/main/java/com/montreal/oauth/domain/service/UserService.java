@@ -56,6 +56,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.montreal.oauth.domain.service.IPasswordResetService;
 
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
@@ -89,6 +90,7 @@ public class UserService {
     private final AuthenticationManager authenticationManager;
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
     private final UserTokenService userTokenService;
+    private final IPasswordResetService passwordResetService;
 
     @Autowired(required = false)
     private PasswordHistoryService passwordHistoryService;
@@ -158,7 +160,7 @@ public class UserService {
     private void sendEmailWithRollback(UserInfo savedUser) {
         try {
         	savedUser = decryptSensitiveFields(savedUser);
-            emailService.sendEmailRegistrationConfirmation(savedUser);
+            passwordResetService.generatePasswordResetToken(savedUser.getUsername());
         } catch (EmailException e) {
             log.error("Erro ao enviar e-mail de confirmação. Removendo usuário criado.", e);
             userRepository.deleteById(savedUser.getId());
