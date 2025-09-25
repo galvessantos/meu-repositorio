@@ -35,7 +35,6 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final CompanyRepository companyRepository;
-    private final UserService userService;
     private final EmailService emailService;
     private final UserTokenService userTokenService;
 
@@ -277,8 +276,6 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
     private ResetPasswordResult generateAutoLoginTokens(UserInfo user) {
         try {
             log.info("Generating auto-login tokens for user: {}", user.getUsername());
-
-            user = userService.decryptSensitiveFields(user);
 
             boolean isAdmin = user.getRoles().stream()
                     .anyMatch(role -> RoleEnum.ROLE_ADMIN.equals(role.getName()));
