@@ -10,3 +10,4 @@ public enum TwoFactorTypeEnum {
     SMS, EMAIL
 
 }
+

@@ -53,5 +53,5 @@ public class TwoFactorAuth {
         this.updatedAt = LocalDateTime.now();
     }
 
-
 }
+

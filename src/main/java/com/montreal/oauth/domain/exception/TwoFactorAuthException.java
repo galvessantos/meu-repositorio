@@ -7,3 +7,4 @@ public class TwoFactorAuthException extends RuntimeException {
     }
 
 }
+
