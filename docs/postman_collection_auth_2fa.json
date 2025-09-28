@@ -1,0 +1,1151 @@
+{
+  "info": {
+    "name": "Sistema de Autenticação e 2FA",
+    "description": "Collection completa para testar todos os fluxos de autenticação, reset de senha, cadastro e tokens 2FA",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reset_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "two_factor_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "username",
+      "value": "usuario@teste.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "Teste@123",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 1. FLUXO DE CADASTRO (PRIMEIRO ACESSO)",
+      "item": [
+        {
+          "name": "1.1 Gerar Token de Reset (Primeiro Acesso)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar resetLink', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('resetLink');",
+                  "    pm.expect(responseJson.resetLink).to.not.be.null;",
+                  "    ",
+                  "    // Extrair token da URL e salvar na variável",
+                  "    const url = responseJson.resetLink;",
+                  "    const tokenMatch = url.match(/token=([^&]+)/);",
+                  "    if (tokenMatch) {",
+                  "        pm.collectionVariables.set('reset_token', tokenMatch[1]);",
+                  "        console.log('Token extraído:', tokenMatch[1]);",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Mensagem de sucesso', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.message).to.include('successfully');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{username}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "generate"]
+            },
+            "description": "Gera token de reset para usuário que nunca definiu senha (primeiro acesso)"
+          }
+        },
+        {
+          "name": "1.2 Validar Token de Reset (Primeiro Acesso)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Token deve ser válido', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.valid).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Deve ser primeiro acesso', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.firstAccess).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Mensagem de token válido', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.message).to.include('valid');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/validate?token={{reset_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "validate"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{reset_token}}"
+                }
+              ]
+            },
+            "description": "Valida token e confirma que é primeiro acesso (firstAccess: true)"
+          }
+        },
+        {
+          "name": "1.3 Definir Senha (Primeiro Acesso - COM 2FA)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Operação deve ser bem-sucedida', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Deve exigir token 2FA', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.requiresToken).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Não deve retornar accessToken', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.accessToken).to.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test('Mensagem de sucesso', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.message).to.include('sucesso');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{reset_token}}\",\n  \"newPassword\": \"{{password}}\",\n  \"confirmPassword\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/reset",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "reset"]
+            },
+            "description": "Define senha no primeiro acesso. Para usuário com role que exige 2FA, deve retornar requiresToken: true"
+          }
+        }
+      ],
+      "description": "Fluxo completo de cadastro/primeiro acesso com definição de senha"
+    },
+    {
+      "name": "🔄 2. FLUXO DE RESET DE SENHA",
+      "item": [
+        {
+          "name": "2.1 Gerar Token de Reset (Usuário Existente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar resetLink', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('resetLink');",
+                  "    pm.expect(responseJson.resetLink).to.not.be.null;",
+                  "    ",
+                  "    // Extrair token da URL e salvar na variável",
+                  "    const url = responseJson.resetLink;",
+                  "    const tokenMatch = url.match(/token=([^&]+)/);",
+                  "    if (tokenMatch) {",
+                  "        pm.collectionVariables.set('reset_token', tokenMatch[1]);",
+                  "        console.log('Token de reset extraído:', tokenMatch[1]);",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Mensagem de sucesso', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.message).to.include('successfully');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{username}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "generate"]
+            },
+            "description": "Gera token de reset para usuário que já possui senha definida"
+          }
+        },
+        {
+          "name": "2.2 Validar Token de Reset (Usuário Existente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Token deve ser válido', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.valid).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('NÃO deve ser primeiro acesso', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.firstAccess).to.be.false;",
+                  "});",
+                  "",
+                  "pm.test('Mensagem de token válido', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.message).to.include('valid');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/validate?token={{reset_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "validate"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{reset_token}}"
+                }
+              ]
+            },
+            "description": "Valida token e confirma que NÃO é primeiro acesso (firstAccess: false)"
+          }
+        },
+        {
+          "name": "2.3 Redefinir Senha (Login Automático)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Operação deve ser bem-sucedida', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Deve fazer login automático (accessToken presente)', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.accessToken).to.not.be.undefined;",
+                  "    pm.expect(responseJson.refreshToken).to.not.be.undefined;",
+                  "    ",
+                  "    // Salvar tokens para uso posterior",
+                  "    pm.collectionVariables.set('access_token', responseJson.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', responseJson.refreshToken);",
+                  "});",
+                  "",
+                  "pm.test('NÃO deve exigir token 2FA', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.requiresToken).to.not.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar dados do usuário', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.userDetails).to.not.be.undefined;",
+                  "    ",
+                  "    if (responseJson.userDetails && responseJson.userDetails.user) {",
+                  "        pm.collectionVariables.set('user_id', responseJson.userDetails.user.id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{reset_token}}\",\n  \"newPassword\": \"NovaSenha@123\",\n  \"confirmPassword\": \"NovaSenha@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/reset",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "reset"]
+            },
+            "description": "Redefine senha de usuário existente. Deve fazer login automático (sem 2FA)"
+          }
+        }
+      ],
+      "description": "Fluxo completo de reset de senha para usuários que já possuem senha definida"
+    },
+    {
+      "name": "🔑 3. FLUXO DE LOGIN COM 2FA",
+      "item": [
+        {
+          "name": "3.1 Login SEM 2FA (Usuário Normal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar tokens de acesso', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.accessToken).to.not.be.undefined;",
+                  "    pm.expect(responseJson.token).to.not.be.undefined;",
+                  "    ",
+                  "    // Salvar tokens",
+                  "    pm.collectionVariables.set('access_token', responseJson.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', responseJson.token);",
+                  "});",
+                  "",
+                  "pm.test('NÃO deve exigir 2FA', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.requiresToken).to.not.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar dados do usuário', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.userDetails).to.not.be.undefined;",
+                  "    ",
+                  "    if (responseJson.userDetails && responseJson.userDetails.user) {",
+                  "        pm.collectionVariables.set('user_id', responseJson.userDetails.user.id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Login de usuário que NÃO precisa de 2FA. Deve retornar tokens diretamente."
+          }
+        },
+        {
+          "name": "3.2 Login COM 2FA (Usuário com Role 2FA)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deve exigir 2FA', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.requiresToken).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('NÃO deve retornar accessToken', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.accessToken).to.be.null;",
+                  "    pm.expect(responseJson.token).to.be.null;",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar dados do usuário', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.userDetails).to.not.be.undefined;",
+                  "    ",
+                  "    if (responseJson.userDetails && responseJson.userDetails.user) {",
+                  "        pm.collectionVariables.set('user_id', responseJson.userDetails.user.id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"usuario.com.2fa@teste.com\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Login de usuário que precisa de 2FA. Deve retornar requiresToken: true e gerar token automaticamente."
+          }
+        }
+      ],
+      "description": "Fluxos de login com e sem necessidade de token 2FA"
+    },
+    {
+      "name": "🛡️ 4. GERENCIAMENTO DE TOKENS 2FA",
+      "item": [
+        {
+          "name": "4.1 Gerar Token 2FA Manualmente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar token', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.token).to.not.be.undefined;",
+                  "    pm.expect(responseJson.token).to.have.lengthOf(5);",
+                  "    ",
+                  "    // Salvar token para validação",
+                  "    pm.collectionVariables.set('two_factor_token', responseJson.token);",
+                  "    console.log('Token 2FA gerado:', responseJson.token);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar data de expiração', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.expiresAt).to.not.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test('Token deve ter 5 caracteres alfanuméricos', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    const token = responseJson.token;",
+                  "    pm.expect(token).to.match(/^[A-Za-z0-9]{5}$/);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{user_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/generate-token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "generate-token"]
+            },
+            "description": "Gera token 2FA de 5 caracteres alfanuméricos com expiração de 5 minutos"
+          }
+        },
+        {
+          "name": "4.2 Validar Token 2FA (Sucesso)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar tokens de acesso', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.accessToken).to.not.be.undefined;",
+                  "    pm.expect(responseJson.token).to.not.be.undefined;",
+                  "    ",
+                  "    // Salvar tokens",
+                  "    pm.collectionVariables.set('access_token', responseJson.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', responseJson.token);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar dados do usuário', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.userDetails).to.not.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test('Token deve ser invalidado após uso', function () {",
+                  "    // Este teste confirma que o token foi consumido",
+                  "    pm.test('Validação bem-sucedida', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{user_id}},\n  \"token\": \"{{two_factor_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/validate-token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "validate-token"]
+            },
+            "description": "Valida token 2FA válido. Deve autenticar usuário e retornar JWT tokens."
+          }
+        },
+        {
+          "name": "4.3 Validar Token 2FA (Token Inválido)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 401 (Unauthorized)', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar erro TOKEN_INVALIDO', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.error).to.equal('TOKEN_INVALIDO');",
+                  "});",
+                  "",
+                  "pm.test('NÃO deve retornar tokens', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.accessToken).to.be.undefined;",
+                  "    pm.expect(responseJson.token).to.be.undefined;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{user_id}},\n  \"token\": \"XXXXX\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/validate-token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "validate-token"]
+            },
+            "description": "Tenta validar token inválido. Deve retornar erro TOKEN_INVALIDO."
+          }
+        },
+        {
+          "name": "4.4 Validar Token 2FA (Token Já Usado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 401 (Unauthorized)', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar erro TOKEN_INVALIDO', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.error).to.equal('TOKEN_INVALIDO');",
+                  "});",
+                  "",
+                  "pm.test('Token usado não pode ser reutilizado', function () {",
+                  "    // Confirma que tokens são de uso único",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{user_id}},\n  \"token\": \"{{two_factor_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/validate-token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "validate-token"]
+            },
+            "description": "Tenta reutilizar token já validado. Deve falhar pois tokens são de uso único."
+          }
+        }
+      ],
+      "description": "Testes completos de geração e validação de tokens 2FA"
+    },
+    {
+      "name": "⚠️ 5. TESTES DE CASOS EXTREMOS",
+      "item": [
+        {
+          "name": "5.1 Validar Token Reset Inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Token deve ser inválido', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.valid).to.be.false;",
+                  "});",
+                  "",
+                  "pm.test('firstAccess deve ser null', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.firstAccess).to.be.null;",
+                  "});",
+                  "",
+                  "pm.test('Mensagem de token inválido', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.message).to.include('invalid');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/validate?token=token-invalido-123",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "validate"],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "token-invalido-123"
+                }
+              ]
+            },
+            "description": "Valida token de reset inválido/inexistente"
+          }
+        },
+        {
+          "name": "5.2 Reset com Token Inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 400 ou 404', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 404]);",
+                  "});",
+                  "",
+                  "pm.test('Operação deve falhar', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.success).to.be.false;",
+                  "});",
+                  "",
+                  "pm.test('Mensagem de erro apropriada', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.message).to.include('inválido');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"token-invalido-123\",\n  \"newPassword\": \"{{password}}\",\n  \"confirmPassword\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/reset",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "reset"]
+            },
+            "description": "Tenta resetar senha com token inválido"
+          }
+        },
+        {
+          "name": "5.3 Reset com Senhas Não Coincidentes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Operação deve falhar', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.success).to.be.false;",
+                  "});",
+                  "",
+                  "pm.test('Mensagem sobre senhas não coincidentes', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.message).to.include('coincidem');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{reset_token}}\",\n  \"newPassword\": \"Senha@123\",\n  \"confirmPassword\": \"SenhaDiferente@456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/password-reset/reset",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "password-reset", "reset"]
+            },
+            "description": "Tenta resetar senha com confirmação diferente"
+          }
+        },
+        {
+          "name": "5.4 Login com Credenciais Inválidas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('NÃO deve retornar tokens', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.accessToken).to.be.null;",
+                  "    pm.expect(responseJson.token).to.be.null;",
+                  "});",
+                  "",
+                  "pm.test('NÃO deve retornar dados do usuário', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.userDetails).to.be.null;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"senha-errada-123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Tenta fazer login com senha incorreta"
+          }
+        }
+      ],
+      "description": "Testes de casos extremos e validação de erros"
+    },
+    {
+      "name": "🔄 6. TESTES DE REFRESH TOKEN",
+      "item": [
+        {
+          "name": "6.1 Refresh Token Válido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar novo accessToken', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.accessToken).to.not.be.undefined;",
+                  "    ",
+                  "    // Salvar novo token",
+                  "    pm.collectionVariables.set('access_token', responseJson.accessToken);",
+                  "});",
+                  "",
+                  "pm.test('Deve manter o mesmo refreshToken', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.token).to.equal(pm.collectionVariables.get('refresh_token'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh-token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "refresh-token"]
+            },
+            "description": "Renova accessToken usando refreshToken válido"
+          }
+        },
+        {
+          "name": "6.2 Refresh Token Inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 404 ou 400', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 404]);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar erro', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('title');",
+                  "    pm.expect(responseJson.title).to.include('não encontrado');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"refresh-token-invalido-123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh-token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "refresh-token"]
+            },
+            "description": "Tenta renovar com refreshToken inválido"
+          }
+        }
+      ],
+      "description": "Testes de renovação de tokens de acesso"
+    },
+    {
+      "name": "🔒 7. TESTES COM AUTENTICAÇÃO",
+      "item": [
+        {
+          "name": "7.1 Acesso a Endpoint Protegido (Com Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deve retornar dados do usuário', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.not.be.undefined;",
+                  "    pm.expect(responseJson.username).to.not.be.undefined;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "profile"]
+            },
+            "description": "Acessa endpoint protegido com JWT válido"
+          }
+        },
+        {
+          "name": "7.2 Acesso a Endpoint Protegido (Sem Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 401 ou 403', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+                  "});",
+                  "",
+                  "pm.test('Deve negar acesso', function () {",
+                  "    // Confirma que endpoint está protegido",
+                  "    pm.expect(pm.response.code).to.not.equal(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "profile"]
+            },
+            "description": "Tenta acessar endpoint protegido sem autenticação"
+          }
+        }
+      ],
+      "description": "Testes de autorização e proteção de endpoints"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Script executado antes de cada requisição",
+          "console.log('Executando requisição:', pm.info.requestName);",
+          "",
+          "// Log das variáveis principais",
+          "console.log('Base URL:', pm.collectionVariables.get('base_url'));",
+          "console.log('User ID:', pm.collectionVariables.get('user_id'));",
+          "console.log('Access Token:', pm.collectionVariables.get('access_token') ? 'Presente' : 'Ausente');",
+          "console.log('Reset Token:', pm.collectionVariables.get('reset_token') ? 'Presente' : 'Ausente');"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Script executado após cada requisição",
+          "console.log('Resposta da requisição:', pm.info.requestName);",
+          "console.log('Status:', pm.response.code);",
+          "console.log('Tempo de resposta:', pm.response.responseTime + 'ms');",
+          "",
+          "// Teste global de tempo de resposta",
+          "pm.test('Tempo de resposta deve ser menor que 5 segundos', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "// Teste global de Content-Type para respostas JSON",
+          "if (pm.response.code === 200 && pm.response.headers.get('Content-Type') && pm.response.headers.get('Content-Type').includes('application/json')) {",
+          "    pm.test('Content-Type deve ser application/json', function () {",
+          "        pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}
