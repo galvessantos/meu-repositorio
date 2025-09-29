@@ -139,10 +139,8 @@ public class SecurityConfig {
                         // Endpoints públicos específicos
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/refresh-token").permitAll()
-                        .requestMatchers("/api/v1/auth/user").permitAll()
                         .requestMatchers("/api/v1/auth/generate-token").permitAll()
                         .requestMatchers("/api/v1/auth/validate-token").permitAll()
-                        .requestMatchers("/api/v1/auth/user/{id}/send-email-register").permitAll()
                         .requestMatchers("/api/auth/password-reset/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
