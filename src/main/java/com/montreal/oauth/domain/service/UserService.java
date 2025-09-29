@@ -186,7 +186,6 @@ public class UserService {
                 log.warn("Usuário com username '{}' não encontrado no banco de dados.", username);
                 throw new UserNotFoundException("Usuário não encontrado");
             }
-            }
 
             UserInfo user = optionalUser.get();
             user = decryptSensitiveFields(user);
