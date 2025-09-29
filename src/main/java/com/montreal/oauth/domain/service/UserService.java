@@ -170,13 +170,13 @@ public class UserService {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication == null || !authentication.isAuthenticated()) {
                 log.warn("Nenhum usuário autenticado encontrado no contexto de segurança.");
-                return null;
+                throw new UnauthorizedException("Usuário não autenticado");
             }
 
             Object principal = authentication.getPrincipal();
             if (!(principal instanceof UserDetails)) {
                 log.warn("O principal autenticado não é uma instância de UserDetails.");
-                return null;
+                throw new UnauthorizedException("Principal inválido");
             }
 
             String username = ((UserDetails) principal).getUsername();
@@ -184,7 +184,8 @@ public class UserService {
 
             if (optionalUser.isEmpty()) {
                 log.warn("Usuário com username '{}' não encontrado no banco de dados.", username);
-                return null;
+                throw new UserNotFoundException("Usuário não encontrado");
+            }
             }
 
             UserInfo user = optionalUser.get();
