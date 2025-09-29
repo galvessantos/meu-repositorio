@@ -36,13 +36,16 @@ password: Teste@123             (senha do usuário)
 ### Opção 2: Executar por Fluxo
 Execute as pastas na ordem recomendada:
 
-1. **🔐 1. FLUXO DE CADASTRO (PRIMEIRO ACESSO)**
-2. **🔄 2. FLUXO DE RESET DE SENHA**
-3. **🔑 3. FLUXO DE LOGIN COM 2FA**
-4. **🛡️ 4. GERENCIAMENTO DE TOKENS 2FA**
-5. **⚠️ 5. TESTES DE CASOS EXTREMOS**
-6. **🔄 6. TESTES DE REFRESH TOKEN**
-7. **🔒 7. TESTES COM AUTENTICAÇÃO**
+1. **🏗️ 0. PREPARAÇÃO DE DADOS** *(Obrigatório - cria usuários de teste)*
+2. **🔐 1. FLUXO DE CADASTRO (PRIMEIRO ACESSO)** *(usa usuário recém-criado)*
+3. **🔄 2. FLUXO DE RESET DE SENHA** *(usa usuário existente)*
+4. **🔑 3. FLUXO DE LOGIN COM 2FA**
+5. **🛡️ 4. GERENCIAMENTO DE TOKENS 2FA**
+6. **⚠️ 5. TESTES DE CASOS EXTREMOS**
+7. **🔄 6. TESTES DE REFRESH TOKEN**
+8. **🔒 7. TESTES COM AUTENTICAÇÃO**
+
+> **⚠️ IMPORTANTE**: Execute sempre a pasta "0. PREPARAÇÃO DE DADOS" primeiro para criar os usuários necessários para os testes!
 
 ### Opção 3: Executar Requisições Individuais
 - Clique em uma requisição específica
@@ -73,7 +76,37 @@ password         | Teste@123               | Teste@123
 
 ---
 
+## 🔍 Diferença Entre Primeiro Acesso e Reset de Senha
+
+### ❓ **Por que preciso criar um usuário novo?**
+
+O sistema diferencia entre **PRIMEIRO ACESSO** e **RESET DE SENHA** baseado no campo `isPasswordChangedByUser` do usuário:
+
+- **`isPasswordChangedByUser = false`** → **PRIMEIRO ACESSO** (`firstAccess: true`)
+- **`isPasswordChangedByUser = true`** → **RESET DE SENHA** (`firstAccess: false`)
+
+### 🏗️ **Preparação de Dados**
+A pasta **"0. PREPARAÇÃO DE DADOS"** é essencial porque:
+
+1. **Cria usuário NOVO** (`isPasswordChangedByUser = false`) para testar primeiro acesso
+2. **Verifica usuário EXISTENTE** (`isPasswordChangedByUser = true`) para testar reset
+
+### 📊 **Fluxos Testados**
+
+| Cenário | Usuário | `firstAccess` | Resultado |
+|---------|---------|---------------|-----------|
+| **Primeiro Acesso** | Recém-criado | `true` | Pode exigir 2FA após definir senha |
+| **Reset de Senha** | Existente | `false` | Login automático (sem 2FA) |
+
+> **💡 Dica**: Se você usar um usuário que já definiu senha para testar "primeiro acesso", o sistema retornará `firstAccess: false` e o teste falhará!
+
+---
+
 ## 📋 Estrutura da Collection
+
+### 🏗️ **0. PREPARAÇÃO DE DADOS**
+- **0.1** Criar Usuário para Primeiro Acesso
+- **0.2** Verificar Usuário Existente (Para Reset)
 
 ### 🔐 **1. FLUXO DE CADASTRO (PRIMEIRO ACESSO)**
 - **1.1** Gerar Token de Reset (Primeiro Acesso)

@@ -42,6 +42,21 @@
       "type": "string"
     },
     {
+      "key": "reset_token_first_access",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "new_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "existing_user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "two_factor_token",
       "value": "",
       "type": "string"
@@ -55,9 +70,120 @@
       "key": "password",
       "value": "Teste@123",
       "type": "string"
+    },
+    {
+      "key": "new_user_username",
+      "value": "novousuario@teste.com",
+      "type": "string"
+    },
+    {
+      "key": "existing_user_username",
+      "value": "usuarioexistente@teste.com",
+      "type": "string"
     }
   ],
   "item": [
+    {
+      "name": "🏗️ 0. PREPARAÇÃO DE DADOS",
+      "item": [
+        {
+          "name": "0.1 Criar Usuário para Primeiro Acesso",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200 ou 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "pm.test('Usuário deve ser criado com sucesso', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('id');",
+                  "    pm.expect(responseJson.username).to.equal(pm.collectionVariables.get('new_user_username'));",
+                  "    ",
+                  "    // Salvar ID do usuário criado",
+                  "    pm.collectionVariables.set('new_user_id', responseJson.id);",
+                  "    console.log('Usuário criado - ID:', responseJson.id);",
+                  "});",
+                  "",
+                  "pm.test('Usuário deve estar com isPasswordChangedByUser = false', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.isPasswordChangedByUser).to.be.false;",
+                  "});",
+                  "",
+                  "pm.test('Usuário deve estar desabilitado inicialmente', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.isEnabled).to.be.false;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{new_user_username}}\",\n  \"email\": \"{{new_user_username}}\",\n  \"cpf\": \"12345678901\",\n  \"phone\": \"11999999999\",\n  \"companyId\": \"1\",\n  \"roles\": [\n    {\n      \"id\": 2,\n      \"name\": \"ROLE_USER\",\n      \"requiresTokenFirstLogin\": true,\n      \"tokenLogin\": false\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/user",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "user"]
+            },
+            "description": "Cria usuário novo que nunca definiu senha (isPasswordChangedByUser = false). Este usuário será usado para testar o fluxo de PRIMEIRO ACESSO."
+          }
+        },
+        {
+          "name": "0.2 Verificar Usuário Existente (Para Reset)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status deve ser 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Usuário existente deve ter senha definida', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.isPasswordChangedByUser).to.be.true;",
+                  "    ",
+                  "    // Salvar ID do usuário existente",
+                  "    pm.collectionVariables.set('existing_user_id', responseJson.id);",
+                  "    console.log('Usuário existente - ID:', responseJson.id);",
+                  "});",
+                  "",
+                  "pm.test('Usuário deve estar habilitado', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.isEnabled).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/user/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "user", "1"]
+            },
+            "description": "Verifica usuário existente que já tem senha definida. Este será usado para testes de RESET DE SENHA."
+          }
+        }
+      ],
+      "description": "Preparação de dados de teste - criação de usuários para diferentes cenários"
+    },
     {
       "name": "🔐 1. FLUXO DE CADASTRO (PRIMEIRO ACESSO)",
       "item": [
@@ -81,8 +207,8 @@
                   "    const url = responseJson.resetLink;",
                   "    const tokenMatch = url.match(/token=([^&]+)/);",
                   "    if (tokenMatch) {",
-                  "        pm.collectionVariables.set('reset_token', tokenMatch[1]);",
-                  "        console.log('Token extraído:', tokenMatch[1]);",
+                  "        pm.collectionVariables.set('reset_token_first_access', tokenMatch[1]);",
+                  "        console.log('Token de primeiro acesso extraído:', tokenMatch[1]);",
                   "    }",
                   "});",
                   "",
@@ -105,7 +231,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"login\": \"{{username}}\"\n}"
+              "raw": "{\n  \"login\": \"{{new_user_username}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/auth/password-reset/generate",
@@ -149,17 +275,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/auth/password-reset/validate?token={{reset_token}}",
+              "raw": "{{base_url}}/api/auth/password-reset/validate?token={{reset_token_first_access}}",
               "host": ["{{base_url}}"],
               "path": ["api", "auth", "password-reset", "validate"],
               "query": [
                 {
                   "key": "token",
-                  "value": "{{reset_token}}"
+                  "value": "{{reset_token_first_access}}"
                 }
               ]
             },
-            "description": "Valida token e confirma que é primeiro acesso (firstAccess: true)"
+            "description": "Valida token e confirma que é primeiro acesso (firstAccess: true) para usuário recém-criado"
           }
         },
         {
@@ -207,7 +333,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"{{reset_token}}\",\n  \"newPassword\": \"{{password}}\",\n  \"confirmPassword\": \"{{password}}\"\n}"
+              "raw": "{\n  \"token\": \"{{reset_token_first_access}}\",\n  \"newPassword\": \"{{password}}\",\n  \"confirmPassword\": \"{{password}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/auth/password-reset/reset",
@@ -267,14 +393,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"login\": \"{{username}}\"\n}"
+              "raw": "{\n  \"login\": \"{{existing_user_username}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/auth/password-reset/generate",
               "host": ["{{base_url}}"],
               "path": ["api", "auth", "password-reset", "generate"]
             },
-            "description": "Gera token de reset para usuário que já possui senha definida"
+            "description": "Gera token de reset para usuário existente que já possui senha definida"
           }
         },
         {
