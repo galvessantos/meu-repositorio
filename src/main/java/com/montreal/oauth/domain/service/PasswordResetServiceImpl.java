@@ -224,6 +224,14 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
                         .build();
             }
 
+            // Se não exige token no primeiro acesso OU não é primeiro acesso,
+            // marcar primeiro login como completo e fazer login automático
+            if (wasFirstAccess) {
+                user.setFirstLoginCompleted(true);
+                userRepository.save(user);
+                log.info("Primeiro login marcado como completo para usuário: {}", user.getUsername());
+            }
+
             return generateAutoLoginTokens(user);
 
         } catch (IllegalArgumentException e) {

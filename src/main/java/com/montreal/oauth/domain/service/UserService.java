@@ -406,6 +406,13 @@ public class UserService {
                             .build();
                 }
 
+                // Marcar primeiro login como completo se ainda não foi marcado
+                if (!user.isFirstLoginCompleted()) {
+                    user.setFirstLoginCompleted(true);
+                    userRepository.save(user);
+                    log.info("Primeiro login marcado como completo para usuário: {}", user.getUsername());
+                }
+
                 String token = refreshTokenService.getTokenByUserId(user.getId());
                 String accessToken = jwtService.GenerateToken(auth.getUsername());
 
