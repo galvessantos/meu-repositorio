@@ -83,6 +83,7 @@ public class UserInfo {
     private boolean isEnabled;
     private boolean isCreatedByAdmin;
     private boolean isPasswordChangedByUser;
+    private boolean isFirstLoginCompleted;
 
     public boolean isCreatedByAdmin() {
         return this.isCreatedByAdmin;

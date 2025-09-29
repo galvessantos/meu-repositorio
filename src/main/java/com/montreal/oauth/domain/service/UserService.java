@@ -512,10 +512,11 @@ public class UserService {
         boolean requiresAlways = user.getRoles().stream()
                 .anyMatch(r -> Boolean.TRUE.equals(r.getTokenLogin()));
 
-        boolean firstLogin = !user.isPasswordChangedByUser();
+        // Primeiro login = usuário tem senha definida MAS nunca completou o primeiro login
+        boolean isFirstLogin = user.isPasswordChangedByUser() && !user.isFirstLoginCompleted();
 
         if (requiresAlways) return true;
-        return requiresFirstLogin && firstLogin;
+        return requiresFirstLogin && isFirstLogin;
     }
 
     private void validateUserCreated(UserRequest userRequest) {
@@ -589,6 +590,10 @@ public class UserService {
         log.info("Buscando usuário pelo ID: {}", userId);
         UserInfo user =  userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com ID: " + userId));
         return decryptSensitiveFields(user);
+    }
+    
+    public UserInfo save(UserInfo user) {
+        return userRepository.save(user);
     }
 
     public List<UserInfo> findUsersByCompanyId(Long companyId) {

@@ -43,7 +43,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     @Override
     public void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String requestURI = request.getRequestURI();
-        if (requestURI.startsWith("/api/auth/password-reset/")) {
+        if (requestURI.startsWith("/api/auth/password-reset/") ||
+            requestURI.startsWith("/api/v1/auth/login") ||
+            requestURI.startsWith("/api/v1/auth/refresh-token") ||
+            requestURI.startsWith("/api/v1/auth/user") ||
+            requestURI.startsWith("/api/v1/auth/generate-token") ||
+            requestURI.startsWith("/api/v1/auth/validate-token")) {
             filterChain.doFilter(request, response);
             return;
         }
