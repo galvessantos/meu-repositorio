@@ -4,6 +4,7 @@ import com.montreal.core.domain.dto.response.MessageResponse;
 import com.montreal.core.domain.enumerations.MessageTypeEnum;
 import com.montreal.core.domain.exception.ClientServiceException;
 import com.montreal.core.domain.exception.ConflictUserException;
+import com.montreal.core.domain.exception.CryptoException;
 import com.montreal.core.domain.exception.EmailException;
 import com.montreal.core.domain.exception.InternalErrorException;
 import com.montreal.core.domain.exception.NegocioException;
@@ -11,6 +12,7 @@ import com.montreal.core.domain.exception.NotFoundException;
 import com.montreal.core.domain.exception.UnauthorizedException;
 import com.montreal.core.domain.exception.UserNotFoundException;
 import com.montreal.core.domain.service.EmailService;
+import com.montreal.core.exception_handler.ProblemType;
 import com.montreal.core.utils.PostgresCryptoUtil;
 import com.montreal.msiav_bh.entity.Company;
 import com.montreal.msiav_bh.repository.CompanyRepository;
@@ -56,6 +58,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -102,9 +105,9 @@ public class UserService {
         UserInfo user = IUserMapper.INSTANCE.toEntity(userRequest);
         user.setCreatedByAdmin(true);
         user.setPasswordChangedByUser(false);
+        user.setFirstLoginCompleted(false); // Initialize first login tracking
         user.setResetAt(new Timestamp(System.currentTimeMillis()));
         user.setPassword(encodedPassword);
-
 
         user = encryptSensitiveFields(user);
 
@@ -113,9 +116,7 @@ public class UserService {
 
     public UserResponse saveUser(UserRequest userRequest) {
         try {
-
             UserInfo savedUser = createAndSaveUser(userRequest);
-
 
             UserInfo userForReturn = decryptSensitiveFields(savedUser);
             return IUserMapper.INSTANCE.toResponse(userForReturn);
@@ -151,7 +152,6 @@ public class UserService {
             return false;
         }
     }
-
 
     private void sendEmailWithRollback(UserInfo savedUser) {
         try {
@@ -194,7 +194,7 @@ public class UserService {
 
         } catch (Exception e) {
             log.error("Erro ao tentar recuperar o usuário autenticado: {}", e.getMessage(), e);
-            return null;
+            throw new UnauthorizedException("Erro ao recuperar usuário autenticado");
         }
     }
 
@@ -218,7 +218,7 @@ public class UserService {
     }
 
     public UserInfo getUserInfo(Long id) {
-        UserInfo user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Veiculo não encontrado"));
+        UserInfo user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
         return decryptSensitiveFields(user);
     }
 
@@ -234,7 +234,95 @@ public class UserService {
         return modelMapper.map(decryptSensitiveFields(userRepository.findByEmail(email)), UserResponse.class);
     }
 
-    // Removed legacy passwordRecovery and passwordReset methods (handled by PasswordResetService and controller)
+    public MessageResponse passwordRecovery(String email) {
+        try {
+            Optional<UserInfo> optionalUser = Optional.ofNullable(userRepository.findByEmail(email));
+
+            if (optionalUser.isEmpty()) {
+                return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_NOT_FOUND, "O email não foi encontrado!", this.addSingleObj("erros", "Não foi possível identificar o usuário com o email informado!")).build();
+            }
+            UserInfo user = optionalUser.get();
+            user = decryptSensitiveFields(user);
+            String linkPlain = OffsetDateTime.now().toEpochSecond() +
+                    "," +
+                    user.getId() +
+                    "," +
+                    user.getFullName().replace(" ", "-") +
+                    "," +
+                    user.getEmail() +
+                    "," +
+                    OffsetDateTime.now().toEpochSecond();
+
+            String link = aes.encryptFromString(linkPlain, encryptSecretKey);
+            String linkParse = link.replace("/", "-W-");
+            String linkEmail = "http://localhost:4202/#/home?link=" + linkParse;
+            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+            user.setLink(link);
+            user.setReset(true);
+            user.setResetAt(timestamp);
+
+            userRepository.save(user);
+            emailService.sendEmailFromTemplate(user.getFullName(), linkEmail, user.getEmail());
+
+            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_OK, "Link de recuperação gerado com sucesso!", this.addSingleObj("link", linkParse)).build();
+
+        } catch (CryptoException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new InternalErrorException("Falha ao gerar link de recuperação de senha!", e);
+        }
+    }
+
+    public MessageResponse login(String username, String password) {
+
+        UserInfo user = userRepository.findByUsername(username);
+        user = decryptSensitiveFields(user);
+
+        if ((Optional.ofNullable(user)).isEmpty()) {
+            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_UNAUTHORIZED, "Acesso Negado!", this.addSingleObj("erros", "Não foi possível acessar com os dados informados!")).build();
+        }
+
+        Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, password));
+        if(authentication.isAuthenticated()) {
+            String accessToken;
+            try {
+                accessToken = aes.encryptFromString(jwtService.GenerateToken(username), encryptSecretKey);
+            } catch (Exception e) {
+                throw new NegocioException(ProblemType.ERRO_NEGOCIO, "Erro ao gerar o token de acesso", e);
+            }
+
+            String token = refreshTokenService.getTokenByUserId(user.getId());
+            if(token.isEmpty()) {
+                RefreshToken refreshToken =  refreshTokenService.createRefreshToken(username);
+                token = refreshToken.getToken();
+            }
+
+            var jwtResponseDTO = JwtResponseDTO.builder().accessToken(accessToken).token(token).build();
+            Map<String, List<String>> list = new HashMap<>();
+
+            list.put("token", Collections.singletonList(jwtResponseDTO.getToken()));
+            list.put("accessToken", Collections.singletonList(jwtResponseDTO.getAccessToken()));
+
+            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_OK, "Acesso realizado com sucesso!", list).build();
+        } else {
+            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_UNAUTHORIZED, "Acesso Negado!", this.addSingleObj("erros", "Não foi possível acessar com os dados informados!")).build();
+        }
+    }
+
+    public MessageResponse passwordReset(String password, String email, String link) {
+        UserInfo user = userRepository.findByEmail(email);
+        user = decryptSensitiveFields(user);
+        if ((Optional.ofNullable(user)).isEmpty()) {
+            return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_NOT_FOUND, "O email não foi encontrado", this.addSingleObj("erros", "Não foi possível acessar com os dados informados!")).build();
+        }
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        String encodedPassword = encoder.encode(password);
+        user.setPassword(encodedPassword);
+        user.setReset(false);
+        user = encryptSensitiveFields(user);
+        userRepository.save(user);
+        return MessageMapper.createMessageBuilder(MessageTypeEnum.MSG_OK, "Link de recuperação gerado com sucesso!", this.addSingleObj("OK", "!")).build();
+    }
 
     public void update(UserInfo user) {
         user = encryptSensitiveFields(user);
@@ -251,19 +339,18 @@ public class UserService {
 
     private void findRoles(UserRequest userRequest) {
         userRequest.getRoles().forEach(role ->
-                roleRepository.findByName(role.getName()).ifPresentOrElse(
-                        foundRole -> role.setId(foundRole.getId()),
-                        () -> {
-                            throw new NegocioException(String.format("Não foi possível encontrar o papel com o nome: %s", role.getName()));
-                        }
-                )
+            roleRepository.findByName(role.getName()).ifPresentOrElse(
+                    foundRole -> role.setId(foundRole.getId()),
+                    () -> {
+                        throw new NegocioException(String.format("Não foi possível encontrar o papel com o nome: %s", role.getName()));
+                    }
+            )
         );
     }
 
     @Transactional
     public UserInfo updateUser(Long userId, UserRequest userRequest) {
         try {
-
             UserInfo existingUser = userRepository.findFirstById(userId);
             if (existingUser == null) {
                 throw new UserNotFoundException("Não é possível encontrar o registro com o identificador: " + userId);
@@ -285,6 +372,7 @@ public class UserService {
                         role.setName(roleRequest.getName());
                         role.setBiometricValidation(roleRequest.getBiometricValidation());
                         role.setRequiresTokenFirstLogin(roleRequest.getRequiresTokenFirstLogin());
+                        role.setTokenLogin(roleRequest.getTokenLogin());
                         return role;
                     })
                     .collect(Collectors.toSet());
@@ -336,7 +424,8 @@ public class UserService {
     }
 
     public UserInfo getUserById(Long id) {
-        UserInfo user = userRepository.findById(id).orElseThrow(() -> new NotFoundException("Usuário não encontrado com ID: " + id));
+        UserInfo user = userRepository.findByIdWithRolesAndFunctionalities(id)
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado com ID: " + id));
         return decryptSensitiveFields(user);
     }
 
@@ -539,7 +628,6 @@ public class UserService {
             throw new NegocioException("O campo companyId é obrigatório para usuários não administradores.");
         }
 
-
         if (isCpfExist(userRequest.getCpf())) {
             throw new DuplicateUserException(
                     String.format("O CPF %s já está em uso.", userRequest.getCpf()));
@@ -548,7 +636,6 @@ public class UserService {
             throw new DuplicateUserException(String.format("O username %s já está em uso.", userRequest.getUsername()));
         }
     }
-
 
     private Optional<String> safeDecrypt(String encryptedHex) {
         try {
@@ -571,7 +658,26 @@ public class UserService {
                 .anyMatch(decrypted -> decrypted.equals(rawCpf));
     }
 
-    // Removed obsolete completeRegistration method
+    public UserResponse completeRegistration(Long idUser) {
+        log.info("Completando registro para usuário com ID: {}", idUser);
+        try {
+            var user = getUserById(idUser);
+
+            user.setPasswordChangedByUser(true);
+            user.setEnabled(true);
+            user.setTokenTemporary(null);
+            user.setTokenExpiredAt(null);
+            user = encryptSensitiveFields(user);
+            var userSaved = userRepository.save(user);
+            userSaved = decryptSensitiveFields(userSaved);
+            return IUserMapper.INSTANCE.toResponse(userSaved);
+        } catch (NotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro ao completar o registro do usuário", e);
+            throw new InternalErrorException("Falha ao completar o registro do usuário");
+        }
+    }
 
     private void validatePassword(String password) {
         log.info("Validando critérios da senha");
@@ -595,10 +701,10 @@ public class UserService {
 
     public UserInfo findById(Long userId) {
         log.info("Buscando usuário pelo ID: {}", userId);
-        UserInfo user =  userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com ID: " + userId));
+        UserInfo user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com ID: " + userId));
         return decryptSensitiveFields(user);
     }
-    
+
     public UserInfo save(UserInfo user) {
         return userRepository.save(user);
     }
@@ -611,14 +717,14 @@ public class UserService {
         }
 
         return users.stream()
-                .map(this::decryptSensitiveFields)
-                .collect(Collectors.toList());
+                    .map(this::decryptSensitiveFields)
+                    .collect(Collectors.toList());
     }
 
     public UserInfo getLoggedInUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedException( "Usuário não está autenticado");
+            throw new UnauthorizedException("Usuário não está autenticado");
         }
         Object principal = authentication.getPrincipal();
         if (principal instanceof UserDetails) {
@@ -658,7 +764,6 @@ public class UserService {
         return user;
     }
 
-
     public UserInfo decryptSensitiveFields(UserInfo user) {
 
         if (user == null) {
@@ -676,6 +781,7 @@ public class UserService {
         userCopy.setCompanyId(user.getCompanyId());
         userCopy.setCreatedByAdmin(user.isCreatedByAdmin());
         userCopy.setPasswordChangedByUser(user.isPasswordChangedByUser());
+        userCopy.setFirstLoginCompleted(user.isFirstLoginCompleted()); // Add 2FA field
         userCopy.setLink(user.getLink());
         userCopy.setReset(user.isReset());
         userCopy.setResetAt(user.getResetAt());
@@ -811,25 +917,25 @@ public class UserService {
 
             log.info("Executando query de usuários com SQL: {}", sql);
             List<UserInfo> users = namedParameterJdbcTemplate.query(
-                    sql.toString(),
-                    new MapSqlParameterSource(params),
-                    (rs, rowNum) -> {
-                        UserInfo u = new UserInfo();
-                        u.setId(rs.getLong("id"));
-                        u.setUsername(rs.getString("username"));
-                        u.setEmail(rs.getString("email"));
-                        u.setFullName(rs.getString("fullname"));
-                        u.setCpf(rs.getString("cpf"));
-                        u.setPhone(rs.getString("phone"));
-                        u.setEnabled(rs.getBoolean("is_enabled"));
-                        u.setCompanyId(rs.getString("company_id"));
-                        Set<Role> roles = Arrays.stream(rs.getString("roles_ids")
-                                        .split(","))
-                                .map(Role::new)
-                                .collect(Collectors.toSet());
-                        u.setRoles(roles);
-                        return decryptSensitiveFields(u);
-                    }
+                sql.toString(),
+                new MapSqlParameterSource(params),
+                (rs, rowNum) -> {
+                    UserInfo u = new UserInfo();
+                    u.setId(rs.getLong("id"));
+                    u.setUsername(rs.getString("username"));
+                    u.setEmail(rs.getString("email"));
+                    u.setFullName(rs.getString("fullname"));
+                    u.setCpf(rs.getString("cpf"));
+                    u.setPhone(rs.getString("phone"));
+                    u.setEnabled(rs.getBoolean("is_enabled"));
+                    u.setCompanyId(rs.getString("company_id"));
+                    Set<Role> roles = Arrays.stream(rs.getString("roles_ids")
+                            .split(","))
+                            .map(Role::new)
+                            .collect(Collectors.toSet());
+                    u.setRoles(roles);
+                    return decryptSensitiveFields(u);
+                }
             );
 
             Integer totalResult = namedParameterJdbcTemplate.queryForObject(
@@ -854,6 +960,4 @@ public class UserService {
             throw new InternalErrorException("Erro ao filtrar usuários", e);
         }
     }
-
-
 }
