@@ -26,7 +26,7 @@ public class CustomUserDetails extends UserInfo implements UserDetails {
         this.isEnabled= byUsername.isEnabled();
         List<GrantedAuthority> auths = new ArrayList<>();
         for(Role role : byUsername.getRoles()){
-          auths.add(new SimpleGrantedAuthority(role.getName().getDescription().toUpperCase()));
+          auths.add(new SimpleGrantedAuthority(role.getName().getCode()));
         }
         this.authorities = auths;
     }

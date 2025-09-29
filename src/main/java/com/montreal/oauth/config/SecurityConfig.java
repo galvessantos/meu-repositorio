@@ -143,7 +143,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/validate-token").permitAll()
                         .requestMatchers("/api/auth/password-reset/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         // Todos os outros endpoints exigem autenticação
                         .anyRequest().authenticated()
                 )
