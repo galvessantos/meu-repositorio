@@ -47,6 +47,9 @@ class PasswordResetServiceImplUnitTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private UserTokenService userTokenService;
+
     @InjectMocks
     private PasswordResetServiceImpl passwordResetService;
 
@@ -70,10 +73,13 @@ class PasswordResetServiceImplUnitTest {
         mockUser.setPassword("$2a$10$encoded.password.hash");
         mockUser.setEnabled(false);
         mockUser.setPasswordChangedByUser(false);
+        mockUser.setFirstLoginCompleted(false);
 
         Role userRole = new Role();
         userRole.setId(1);
         userRole.setName(RoleEnum.ROLE_USER);
+        userRole.setRequiresTokenFirstLogin(false);
+        userRole.setTokenLogin(false);
         Set<Role> roles = new HashSet<>();
         roles.add(userRole);
         mockUser.setRoles(roles);
@@ -185,7 +191,7 @@ class PasswordResetServiceImplUnitTest {
         String confirmPassword = "Test@123";
 
         when(passwordResetTokenRepository.findByToken(token)).thenReturn(Optional.of(mockToken));
-        when(userService.decryptSensitiveFields(mockUser)).thenReturn(mockUser);
+        when(userRepository.save(any(UserInfo.class))).thenReturn(mockUser);
         when(jwtService.GenerateToken("testuser@example.com")).thenReturn("access-token");
         when(refreshTokenService.getTokenByUserId(1L)).thenReturn("");
         when(refreshTokenService.createRefreshToken("testuser@example.com")).thenReturn(testRefreshToken);
@@ -196,6 +202,35 @@ class PasswordResetServiceImplUnitTest {
         assertEquals("Senha redefinida com sucesso", result.getMessage());
         assertEquals("access-token", result.getAccessToken());
         assertEquals("refresh-token", result.getRefreshToken());
+    }
+
+    @Test
+    void resetPasswordWithTokens_FirstAccessWith2FA_ReturnsSuccessWithoutTokens() {
+        String token = "valid-token";
+        String newPassword = "Test@123";
+        String confirmPassword = "Test@123";
+
+        // Setup user for first access with 2FA
+        mockUser.setPasswordChangedByUser(false); // First access
+        Role roleWith2FA = new Role();
+        roleWith2FA.setId(1);
+        roleWith2FA.setName(RoleEnum.ROLE_USER);
+        roleWith2FA.setRequiresTokenFirstLogin(true); // Requires 2FA on first login
+        roleWith2FA.setTokenLogin(false);
+        Set<Role> roles = new HashSet<>();
+        roles.add(roleWith2FA);
+        mockUser.setRoles(roles);
+
+        when(passwordResetTokenRepository.findByToken(token)).thenReturn(Optional.of(mockToken));
+        when(userRepository.save(any(UserInfo.class))).thenReturn(mockUser);
+        when(userTokenService.generateAndPersist(any(UserInfo.class))).thenReturn(null); // Mock for 2FA token generation
+
+        ResetPasswordResult result = passwordResetService.resetPasswordWithTokens(token, newPassword, confirmPassword);
+
+        assertTrue(result.isSuccess());
+        assertEquals("Senha definida com sucesso.", result.getMessage());
+        assertNull(result.getAccessToken()); // No access token for 2FA flow
+        assertNull(result.getRefreshToken()); // No refresh token for 2FA flow
     }
 
     @Test
