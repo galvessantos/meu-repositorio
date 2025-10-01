@@ -142,6 +142,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
+        when(userService.save(any(UserInfo.class))).thenReturn(testUser); // Mock para save do primeiro login
         when(jwtService.GenerateToken("testuser@example.com")).thenReturn("jwt-access-token");
         when(refreshTokenService.getTokenByUserId(1L)).thenReturn("");
         when(refreshTokenService.createRefreshToken("testuser@example.com"))
@@ -160,7 +161,7 @@ class AuthTokenControllerUnitTest {
         assertNotNull(jwtResponse.getUserDetails());
 
         verify(userTokenService).validateToken(1L, "ABC12");
-        verify(userService, times(2)).findById(1L); // Uma vez para validação, outra para buscar dados
+        verify(userService, times(1)).findById(1L); // Apenas uma chamada no controller
         verify(jwtService).GenerateToken("testuser@example.com");
         verify(refreshTokenService).getTokenByUserId(1L);
         verify(refreshTokenService).createRefreshToken("testuser@example.com");
@@ -175,6 +176,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
+        when(userService.save(any(UserInfo.class))).thenReturn(testUser); // Mock para save do primeiro login
         when(jwtService.GenerateToken("testuser@example.com")).thenReturn("jwt-access-token");
         when(refreshTokenService.getTokenByUserId(1L)).thenReturn("existing-refresh-token");
 
@@ -276,6 +278,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
+        when(userService.save(any(UserInfo.class))).thenReturn(testUser); // Mock para save do primeiro login
         when(jwtService.GenerateToken("testuser@example.com")).thenThrow(new RuntimeException("JWT generation failed"));
 
         // When
@@ -289,7 +292,7 @@ class AuthTokenControllerUnitTest {
         assertEquals("ERRO_INTERNO", error.getError());
 
         verify(userTokenService).validateToken(1L, "ABC12");
-        verify(userService, times(2)).findById(1L);
+        verify(userService, times(1)).findById(1L);
         verify(jwtService).GenerateToken("testuser@example.com");
     }
 
@@ -302,6 +305,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
+        when(userService.save(any(UserInfo.class))).thenReturn(testUser); // Mock para save do primeiro login
         when(jwtService.GenerateToken("testuser@example.com")).thenReturn("jwt-access-token");
         when(refreshTokenService.getTokenByUserId(1L)).thenReturn("");
         when(refreshTokenService.createRefreshToken("testuser@example.com"))
