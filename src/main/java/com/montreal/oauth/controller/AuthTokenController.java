@@ -7,8 +7,6 @@ import com.montreal.oauth.domain.service.JwtService;
 import com.montreal.oauth.domain.service.RefreshTokenService;
 import com.montreal.oauth.domain.service.UserService;
 import com.montreal.oauth.domain.service.UserTokenService;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -261,22 +259,21 @@ public class AuthTokenController {
             example = "A1B2C",
             required = true
         )
-        private final String token;
+        private String token;
         
         @Schema(
             description = "Data e hora de expiração do token (ISO 8601)",
             example = "2024-01-15T10:30:00",
             required = true
         )
-        private final String expiresAt;
+        private String expiresAt;
         
-        @JsonCreator
-        public GenerateTokenResponse(
-            @JsonProperty("token") String token,
-            @JsonProperty("expiresAt") String expiresAt) {
+        public GenerateTokenResponse(String token, String expiresAt) {
             this.token = token;
             this.expiresAt = expiresAt;
         }
+        
+        public GenerateTokenResponse() {} // Construtor padrão para Jackson
     }
 
     @Data
@@ -310,11 +307,12 @@ public class AuthTokenController {
             required = true,
             allowableValues = {"TOKEN_INVALIDO", "TOKEN_EXPIRADO", "ERRO_INTERNO"}
         )
-        private final String error;
+        private String error;
         
-        @JsonCreator
-        public ValidateTokenError(@JsonProperty("error") String error) {
+        public ValidateTokenError(String error) {
             this.error = error;
         }
+        
+        public ValidateTokenError() {} // Construtor padrão para Jackson
     }
 }
