@@ -7,6 +7,8 @@ import com.montreal.oauth.domain.service.JwtService;
 import com.montreal.oauth.domain.service.RefreshTokenService;
 import com.montreal.oauth.domain.service.UserService;
 import com.montreal.oauth.domain.service.UserTokenService;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -92,9 +94,19 @@ public class AuthTokenController {
     public ResponseEntity<GenerateTokenResponse> generateToken(
         @Parameter(description = "Dados para geração do token 2FA", required = true)
         @RequestBody GenerateTokenRequest req) {
-        UserInfo user = userService.findById(req.getUserId());
-        var token = userTokenService.generateAndPersist(user);
-        return ResponseEntity.ok(new GenerateTokenResponse(token.getToken(), token.getExpiresAt().toString()));
+        
+        if (req.getUserId() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        
+        try {
+            UserInfo user = userService.findById(req.getUserId());
+            var token = userTokenService.generateAndPersist(user);
+            return ResponseEntity.ok(new GenerateTokenResponse(token.getToken(), token.getExpiresAt().toString()));
+        } catch (Exception e) {
+            log.error("Error generating token for user {}", req.getUserId(), e);
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @Operation(
@@ -181,6 +193,11 @@ public class AuthTokenController {
     public ResponseEntity<?> validateToken(
         @Parameter(description = "Dados para validação do token 2FA", required = true)
         @RequestBody ValidateTokenRequest req) {
+        
+        if (req.getUserId() == null || req.getToken() == null || req.getToken().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ValidateTokenError("DADOS_INVALIDOS"));
+        }
+        
         var result = userTokenService.validateToken(req.getUserId(), req.getToken());
         return switch (result) {
             case OK -> {
@@ -267,6 +284,14 @@ public class AuthTokenController {
             required = true
         )
         private final String expiresAt;
+        
+        @JsonCreator
+        public GenerateTokenResponse(
+            @JsonProperty("token") String token,
+            @JsonProperty("expiresAt") String expiresAt) {
+            this.token = token;
+            this.expiresAt = expiresAt;
+        }
     }
 
     @Data
@@ -301,5 +326,10 @@ public class AuthTokenController {
             allowableValues = {"TOKEN_INVALIDO", "TOKEN_EXPIRADO", "ERRO_INTERNO"}
         )
         private final String error;
+        
+        @JsonCreator
+        public ValidateTokenError(@JsonProperty("error") String error) {
+            this.error = error;
+        }
     }
 }

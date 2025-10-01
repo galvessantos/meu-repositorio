@@ -140,7 +140,8 @@ class AuthTokenControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/generate-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestJson))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(""));
     }
 
     @Test
@@ -171,6 +172,8 @@ class AuthTokenControllerIntegrationTest {
         assertEquals(2, tokens.size()); // Token antigo + novo token
         
         // Verificar se o token antigo foi invalidado
+        // Flush para garantir que as mudanças sejam persistidas
+        userTokenRepository.flush();
         var oldTokenFromDb = userTokenRepository.findById(oldToken.getId()).orElse(null);
         assertNotNull(oldTokenFromDb);
         assertFalse(oldTokenFromDb.getIsValid());
@@ -407,8 +410,8 @@ class AuthTokenControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/validate-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(emptyJson))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error", is("TOKEN_INVALIDO")));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", is("DADOS_INVALIDOS")));
     }
 
     @Test
