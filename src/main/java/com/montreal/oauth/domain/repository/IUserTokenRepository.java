@@ -11,13 +11,13 @@ import java.util.Optional;
 
 public interface IUserTokenRepository extends JpaRepository<UserToken, Long> {
 
-    @Query("select ut from UserToken ut where ut.user.id = :userId and ut.isValid = true and ut.expiresAt > :now order by ut.createdAt desc")
+    @Query(value = "select * from user_token ut where ut.user_id = :userId and ut.is_valid = true and ut.expires_at > :now order by ut.created_at desc limit 1", nativeQuery = true)
     Optional<UserToken> findActiveByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
     @Modifying
     @Query("update UserToken ut set ut.isValid = false where ut.user.id = :userId and ut.isValid = true")
     int invalidateAllByUserId(@Param("userId") Long userId);
 
-    @Query("select ut from UserToken ut where ut.user.id = :userId and ut.token = :token order by ut.createdAt desc")
+    @Query(value = "select * from user_token ut where ut.user_id = :userId and ut.token = :token order by ut.created_at desc limit 1", nativeQuery = true)
     Optional<UserToken> findLatestByUserIdAndToken(@Param("userId") Long userId, @Param("token") String token);
 }

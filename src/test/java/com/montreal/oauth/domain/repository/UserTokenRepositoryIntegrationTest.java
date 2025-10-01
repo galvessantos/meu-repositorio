@@ -124,6 +124,8 @@ class UserTokenRepositoryIntegrationTest {
         UserToken newerToken = createUserToken(testUser, "NEW01", now.minusMinutes(2), now.plusMinutes(3), true);
         
         userTokenRepository.save(olderToken);
+        // Aguardar um pouco para garantir diferença no createdAt
+        try { Thread.sleep(10); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         userTokenRepository.save(newerToken);
 
         // When
@@ -132,6 +134,8 @@ class UserTokenRepositoryIntegrationTest {
         // Then
         assertTrue(result.isPresent());
         assertEquals("NEW01", result.get().getToken());
+        // Verificar que retorna apenas um resultado mesmo com múltiplos tokens válidos
+        assertTrue(result.get().getCreatedAt().isAfter(olderToken.getCreatedAt()));
     }
 
     @Test
@@ -181,6 +185,13 @@ class UserTokenRepositoryIntegrationTest {
         userTokenRepository.save(token1);
         userTokenRepository.save(token2);
         userTokenRepository.save(token3);
+
+        // Verificar que há múltiplos tokens válidos antes da invalidação
+        var allTokens = userTokenRepository.findAll();
+        long validTokensCount = allTokens.stream()
+                .filter(t -> t.getUser().getId().equals(testUser.getId()) && t.getIsValid())
+                .count();
+        assertEquals(3, validTokensCount);
 
         // When
         int invalidatedCount = userTokenRepository.invalidateAllByUserId(testUser.getId());
@@ -262,15 +273,15 @@ class UserTokenRepositoryIntegrationTest {
     void findLatestByUserIdAndToken_WithExistingToken_ReturnsToken() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        UserToken token = createUserToken(testUser, "SEARCH", now.minusMinutes(2), now.plusMinutes(3), true);
+        UserToken token = createUserToken(testUser, "SRCH01", now.minusMinutes(2), now.plusMinutes(3), true);
         userTokenRepository.save(token);
 
         // When
-        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "SEARCH");
+        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "SRCH01");
 
         // Then
         assertTrue(result.isPresent());
-        assertEquals("SEARCH", result.get().getToken());
+        assertEquals("SRCH01", result.get().getToken());
         assertEquals(testUser.getId(), result.get().getUser().getId());
     }
 
@@ -278,7 +289,7 @@ class UserTokenRepositoryIntegrationTest {
     void findLatestByUserIdAndToken_WithNonExistentToken_ReturnsEmpty() {
         // Given
         // When
-        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "NONEXISTENT");
+        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "NONE01");
 
         // Then
         assertFalse(result.isPresent());
@@ -288,14 +299,16 @@ class UserTokenRepositoryIntegrationTest {
     void findLatestByUserIdAndToken_WithMultipleSameTokens_ReturnsLatest() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        UserToken olderToken = createUserToken(testUser, "SAME", now.minusMinutes(10), now.plusMinutes(3), true);
-        UserToken newerToken = createUserToken(testUser, "SAME", now.minusMinutes(2), now.plusMinutes(3), true);
+        UserToken olderToken = createUserToken(testUser, "SAME01", now.minusMinutes(10), now.plusMinutes(3), true);
+        // Aguardar para garantir diferença no createdAt
+        try { Thread.sleep(10); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        UserToken newerToken = createUserToken(testUser, "SAME01", now.minusMinutes(2), now.plusMinutes(3), true);
         
         userTokenRepository.save(olderToken);
         userTokenRepository.save(newerToken);
 
         // When
-        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "SAME");
+        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "SAME01");
 
         // Then
         assertTrue(result.isPresent());
@@ -307,11 +320,11 @@ class UserTokenRepositoryIntegrationTest {
     void findLatestByUserIdAndToken_WithWrongUser_ReturnsEmpty() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        UserToken token = createUserToken(testUser, "WRONG_USER", now.minusMinutes(2), now.plusMinutes(3), true);
+        UserToken token = createUserToken(testUser, "WRONG1", now.minusMinutes(2), now.plusMinutes(3), true);
         userTokenRepository.save(token);
 
         // When
-        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(anotherUser.getId(), "WRONG_USER");
+        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(anotherUser.getId(), "WRONG1");
 
         // Then
         assertFalse(result.isPresent());
@@ -321,15 +334,15 @@ class UserTokenRepositoryIntegrationTest {
     void findLatestByUserIdAndToken_ReturnsTokenRegardlessOfValidity() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        UserToken invalidToken = createUserToken(testUser, "INVALID_BUT_FOUND", now.minusMinutes(2), now.plusMinutes(3), false);
+        UserToken invalidToken = createUserToken(testUser, "INVLD1", now.minusMinutes(2), now.plusMinutes(3), false);
         userTokenRepository.save(invalidToken);
 
         // When
-        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "INVALID_BUT_FOUND");
+        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "INVLD1");
 
         // Then
         assertTrue(result.isPresent());
-        assertEquals("INVALID_BUT_FOUND", result.get().getToken());
+        assertEquals("INVLD1", result.get().getToken());
         assertFalse(result.get().getIsValid());
     }
 
@@ -337,15 +350,15 @@ class UserTokenRepositoryIntegrationTest {
     void findLatestByUserIdAndToken_ReturnsTokenRegardlessOfExpiration() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        UserToken expiredToken = createUserToken(testUser, "EXPIRED_BUT_FOUND", now.minusMinutes(10), now.minusMinutes(5), true);
+        UserToken expiredToken = createUserToken(testUser, "EXPRD1", now.minusMinutes(10), now.minusMinutes(5), true);
         userTokenRepository.save(expiredToken);
 
         // When
-        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "EXPIRED_BUT_FOUND");
+        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), "EXPRD1");
 
         // Then
         assertTrue(result.isPresent());
-        assertEquals("EXPIRED_BUT_FOUND", result.get().getToken());
+        assertEquals("EXPRD1", result.get().getToken());
         assertTrue(result.get().getExpiresAt().isBefore(now));
     }
 
@@ -353,14 +366,14 @@ class UserTokenRepositoryIntegrationTest {
     void save_UserToken_PersistsCorrectly() {
         // Given
         LocalDateTime now = LocalDateTime.now();
-        UserToken token = createUserToken(testUser, "SAVE_TEST", now, now.plusMinutes(5), true);
+        UserToken token = createUserToken(testUser, "SAVE01", now, now.plusMinutes(5), true);
 
         // When
         UserToken savedToken = userTokenRepository.save(token);
 
         // Then
         assertNotNull(savedToken.getId());
-        assertEquals("SAVE_TEST", savedToken.getToken());
+        assertEquals("SAVE01", savedToken.getToken());
         assertEquals(testUser.getId(), savedToken.getUser().getId());
         assertEquals(now.withNano(0), savedToken.getCreatedAt().withNano(0)); // Ignorar nanossegundos
         assertTrue(savedToken.getIsValid());
@@ -371,7 +384,7 @@ class UserTokenRepositoryIntegrationTest {
         // Given
         UserToken token = new UserToken();
         token.setUser(testUser);
-        token.setToken("PREPERSIST_TEST");
+        token.setToken("PREP01");
         token.setExpiresAt(LocalDateTime.now().plusMinutes(5));
         // Não definir createdAt e isValid para testar @PrePersist
 
@@ -382,6 +395,62 @@ class UserTokenRepositoryIntegrationTest {
         assertNotNull(savedToken.getId());
         assertNotNull(savedToken.getCreatedAt());
         assertTrue(savedToken.getIsValid());
+    }
+
+    @Test
+    void findActiveByUserId_WithManyValidTokens_ReturnsOnlyOne() {
+        // Given - Criar muitos tokens válidos para testar se LIMIT 1 funciona
+        LocalDateTime now = LocalDateTime.now();
+        for (int i = 1; i <= 5; i++) {
+            UserToken token = createUserToken(testUser, "TOK" + String.format("%02d", i), 
+                                            now.minusMinutes(10 - i), now.plusMinutes(5), true);
+            userTokenRepository.save(token);
+            // Pequena pausa para garantir ordem de criação
+            try { Thread.sleep(5); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+
+        // When
+        Optional<UserToken> result = userTokenRepository.findActiveByUserId(testUser.getId(), now);
+
+        // Then
+        assertTrue(result.isPresent());
+        // Deve retornar o token mais recente (TOK05)
+        assertEquals("TOK05", result.get().getToken());
+        
+        // Verificar que existem múltiplos tokens válidos no banco
+        var allTokens = userTokenRepository.findAll();
+        long validCount = allTokens.stream()
+                .filter(t -> t.getUser().getId().equals(testUser.getId()) && t.getIsValid())
+                .count();
+        assertEquals(5, validCount);
+    }
+
+    @Test
+    void findLatestByUserIdAndToken_WithManyIdenticalTokens_ReturnsOnlyOne() {
+        // Given - Criar múltiplos tokens com mesmo valor para testar LIMIT 1
+        LocalDateTime now = LocalDateTime.now();
+        String tokenValue = "SAME01";
+        
+        for (int i = 1; i <= 3; i++) {
+            UserToken token = createUserToken(testUser, tokenValue, 
+                                            now.minusMinutes(10 - i), now.plusMinutes(5), true);
+            userTokenRepository.save(token);
+            try { Thread.sleep(5); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+
+        // When
+        Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), tokenValue);
+
+        // Then
+        assertTrue(result.isPresent());
+        assertEquals(tokenValue, result.get().getToken());
+        
+        // Verificar que existem múltiplos tokens com mesmo valor no banco
+        var allTokens = userTokenRepository.findAll();
+        long sameTokenCount = allTokens.stream()
+                .filter(t -> t.getUser().getId().equals(testUser.getId()) && tokenValue.equals(t.getToken()))
+                .count();
+        assertEquals(3, sameTokenCount);
     }
 
     // Método auxiliar para criar UserToken
