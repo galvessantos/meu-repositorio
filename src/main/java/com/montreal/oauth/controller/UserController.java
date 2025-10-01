@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -69,12 +70,14 @@ public class UserController {
 
     @Operation(summary = "Cadastrar usuário")
     @PostMapping("/auth/user")
+    @PreAuthorize("hasRole('ADMIN')")
     public UserResponse saveUser(@RequestBody @Valid UserRequest userRequest) {
         return userService.saveUser(userRequest);
     }
 
     @Operation(summary = "Enviar e-mail de cadastro de usuário pelo ID")
     @GetMapping("/auth/user/{id}/send-email-register")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> sendEmailRegister(@PathVariable Long id) {
         log.info("[GET] /auth/user/{}/send-email-register - Iniciando envio de e-mail", id);
         try {

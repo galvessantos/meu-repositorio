@@ -83,6 +83,7 @@ public class UserInfo {
     private boolean isEnabled;
     private boolean isCreatedByAdmin;
     private boolean isPasswordChangedByUser;
+    private boolean isFirstLoginCompleted;
 
     public boolean isCreatedByAdmin() {
         return this.isCreatedByAdmin;
@@ -99,7 +100,7 @@ public class UserInfo {
     public void setPasswordChangedByUser(boolean isPasswordChangedByUser) {
         this.isPasswordChangedByUser = isPasswordChangedByUser;
     }
-    
+
     public void encryptFields(CryptoUtil crypto) {
         if (fullName != null) fullName = crypto.encrypt(fullName);
         if (cpf != null) cpf = crypto.encrypt(cpf);

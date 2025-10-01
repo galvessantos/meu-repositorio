@@ -51,4 +51,6 @@ public class RoleFunctionality implements Serializable {
         this.functionality = functionality;
         this.createdAt = LocalDateTime.now();
     }
+
+
 }

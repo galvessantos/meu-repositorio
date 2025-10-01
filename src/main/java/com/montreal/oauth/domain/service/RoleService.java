@@ -3,6 +3,7 @@ package com.montreal.oauth.domain.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.montreal.oauth.domain.entity.Functionality;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +76,7 @@ public class RoleService {
         return RoleMapper.INSTANCE.toDTOList(roleRepository.findAll());
     }
 
+    @Transactional(readOnly = true)
     public RoleDTO getRoleById(Integer id) {
         log.info("Buscando role com ID: {}", id);
         Role role = roleRepository.findById(id)
@@ -102,19 +104,25 @@ public class RoleService {
     @Transactional
     public RoleDTO updateRoleFunctionalities(Integer roleId, List<Long> functionalityIds) {
         log.info("Atualizando funcionalidades da role ID: {}", roleId);
+
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new NegocioException("Role não encontrada"));
 
-        // Remove funcionalidades antigas antes de adicionar as novas
+        // Limpa a coleção, mas mantém a referência original
         role.getRoleFunctionalities().clear();
 
-        role.setRoleFunctionalities(functionalityIds.stream()
-                .map(functionalityId -> new RoleFunctionality(role, functionalityRepository.findById(functionalityId)
-                        .orElseThrow(() -> new NegocioException("Funcionalidade não encontrada"))))
-                .collect(Collectors.toSet()));
+        // Recria as associações dentro da mesma coleção
+        for (Long functionalityId : functionalityIds) {
+            Functionality functionality = functionalityRepository.findById(functionalityId)
+                    .orElseThrow(() -> new NegocioException("Funcionalidade não encontrada: " + functionalityId));
+
+            RoleFunctionality rf = new RoleFunctionality(role, functionality);
+            role.getRoleFunctionalities().add(rf);
+        }
 
         return RoleMapper.INSTANCE.toDTO(roleRepository.save(role));
     }
+
 
     @Transactional
     public void deleteRole(Integer roleId) {

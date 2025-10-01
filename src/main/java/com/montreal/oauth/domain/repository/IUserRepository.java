@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -82,5 +83,13 @@ public interface IUserRepository extends CustomJpaRepository<UserInfo, Long>, Jp
 		        @Param("fieldName") String fieldName,
 		        @Param("fieldValue") String fieldValue,
 		        Pageable pageable);
+
+
+	@Query("SELECT DISTINCT u FROM UserInfo u " +
+			"LEFT JOIN FETCH u.roles r " +
+			"LEFT JOIN FETCH r.roleFunctionalities rf " +
+			"LEFT JOIN FETCH rf.functionality f " +
+			"WHERE u.id = :userId")
+	Optional<UserInfo> findByIdWithRolesAndFunctionalities(@Param("userId") Long userId);
 
 }

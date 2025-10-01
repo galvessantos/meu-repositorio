@@ -17,7 +17,8 @@ import java.util.Optional;
 public interface IPasswordResetTokenRepository extends CustomJpaRepository<PasswordResetToken, Long> {
 
 
-    Optional<PasswordResetToken> findByToken(String token);
+    @Query("SELECT prt FROM PasswordResetToken prt JOIN FETCH prt.user WHERE prt.token = :token")
+    Optional<PasswordResetToken> findByToken(@Param("token") String token);
 
 
     List<PasswordResetToken> findByUser_Id(Long userId);

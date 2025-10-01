@@ -39,6 +39,13 @@ public class AuthTokenController {
             case OK -> {
                 try {
                     UserInfo user = userService.findById(req.getUserId());
+
+                    if (!user.isFirstLoginCompleted()) {
+                        user.setFirstLoginCompleted(true);
+                        userService.save(user);
+                        log.info("Primeiro login completado para usuário: {}", user.getUsername());
+                    }
+
                     String accessToken = jwtService.GenerateToken(user.getUsername());
                     String refreshToken = refreshTokenService.getTokenByUserId(user.getId());
                     if (refreshToken.isEmpty()) {

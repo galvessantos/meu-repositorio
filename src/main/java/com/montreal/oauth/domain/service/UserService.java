@@ -170,13 +170,13 @@ public class UserService {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication == null || !authentication.isAuthenticated()) {
                 log.warn("Nenhum usuário autenticado encontrado no contexto de segurança.");
-                return null;
+                throw new UnauthorizedException("Usuário não autenticado");
             }
 
             Object principal = authentication.getPrincipal();
             if (!(principal instanceof UserDetails)) {
                 log.warn("O principal autenticado não é uma instância de UserDetails.");
-                return null;
+                throw new UnauthorizedException("Principal inválido");
             }
 
             String username = ((UserDetails) principal).getUsername();
@@ -184,7 +184,7 @@ public class UserService {
 
             if (optionalUser.isEmpty()) {
                 log.warn("Usuário com username '{}' não encontrado no banco de dados.", username);
-                return null;
+                throw new UserNotFoundException("Usuário não encontrado");
             }
 
             UserInfo user = optionalUser.get();
@@ -233,8 +233,6 @@ public class UserService {
     public UserResponse findByEmail(String email) {
         return modelMapper.map(decryptSensitiveFields(userRepository.findByEmail(email)), UserResponse.class);
     }
-
-    // Removed legacy passwordRecovery and passwordReset methods (handled by PasswordResetService and controller)
 
     public void update(UserInfo user) {
         user = encryptSensitiveFields(user);
@@ -336,7 +334,8 @@ public class UserService {
     }
 
     public UserInfo getUserById(Long id) {
-        UserInfo user = userRepository.findById(id).orElseThrow(() -> new NotFoundException("Usuário não encontrado com ID: " + id));
+        UserInfo user = userRepository.findByIdWithRolesAndFunctionalities(id)
+                .orElseThrow(() -> new NotFoundException("Usuário não encontrado com ID: " + id));
         return decryptSensitiveFields(user);
     }
 
@@ -404,6 +403,12 @@ public class UserService {
                             .userDetails(userData)
                             .requiresToken(true)
                             .build();
+                }
+
+                if (!user.isFirstLoginCompleted()) {
+                    user.setFirstLoginCompleted(true);
+                    userRepository.save(user);
+                    log.info("Primeiro login marcado como completo para usuário: {}", user.getUsername());
                 }
 
                 String token = refreshTokenService.getTokenByUserId(user.getId());
@@ -512,10 +517,10 @@ public class UserService {
         boolean requiresAlways = user.getRoles().stream()
                 .anyMatch(r -> Boolean.TRUE.equals(r.getTokenLogin()));
 
-        boolean firstLogin = !user.isPasswordChangedByUser();
+        boolean isFirstLogin = user.isPasswordChangedByUser() && !user.isFirstLoginCompleted();
 
         if (requiresAlways) return true;
-        return requiresFirstLogin && firstLogin;
+        return requiresFirstLogin && isFirstLogin;
     }
 
     private void validateUserCreated(UserRequest userRequest) {
@@ -563,8 +568,6 @@ public class UserService {
                 .anyMatch(decrypted -> decrypted.equals(rawCpf));
     }
 
-    // Removed obsolete completeRegistration method
-
     private void validatePassword(String password) {
         log.info("Validando critérios da senha");
 
@@ -589,6 +592,10 @@ public class UserService {
         log.info("Buscando usuário pelo ID: {}", userId);
         UserInfo user =  userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com ID: " + userId));
         return decryptSensitiveFields(user);
+    }
+
+    public UserInfo save(UserInfo user) {
+        return userRepository.save(user);
     }
 
     public List<UserInfo> findUsersByCompanyId(Long companyId) {

@@ -8,7 +8,7 @@ import lombok.Getter;
 public enum RoleEnum {
 
     ROLE_USER("ROLE_USER", "ROLE_USER"),
-    ROLE_ADMIN("ROLE_ADMIN", "ROLE_ADIMIN"),
+    ROLE_ADMIN("ROLE_ADMIN", "ROLE_ADMIN"),
     ROLE_ESCOBS("ROLE_ESCOBS", "ROLE_ESCOBS"),
     ROLE_AGENTE_OFICIAL("ROLE_AGENTE_OFICIAL", "ROLE_AGENTE_OFICIAL"),
     ROLE_LOCALIZADOR("ROLE_LOCALIZADOR", "ROLE_LOCALIZADOR"),
@@ -21,4 +21,3 @@ public enum RoleEnum {
     private final String description;
 
 }
-

@@ -1,6 +1,7 @@
 package com.montreal.oauth.domain.dto.response;
 
 import java.sql.Timestamp;
+import java.util.List;
 import java.util.Set;
 
 import com.montreal.oauth.domain.dto.RoleDTO;
@@ -23,7 +24,7 @@ public class UserResponse {
     private String link;
     private boolean isReset;
     private Timestamp resetAt;
-    private Set<RoleDTO> roles;
+    private List<RoleDTO> roles;
     private boolean isCreatedByAdmin;
     private boolean isPasswordChangedByUser;
     private String companyId;

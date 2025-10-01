@@ -1,26 +1,23 @@
 package com.montreal.oauth.domain.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.montreal.oauth.domain.enumerations.RoleEnum;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.Hibernate;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -54,8 +51,35 @@ public class Role implements Serializable {
     private Set<RolePermission> rolePermissions = new HashSet<>();
 
     @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnore
     private Set<RoleFunctionality> roleFunctionalities = new HashSet<>();
+
+    @JsonProperty("functionalityIds")
+    public List<Long> getFunctionalityIds() {
+        if (roleFunctionalities == null || roleFunctionalities.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Force o carregamento se for Lazy
+        Hibernate.initialize(roleFunctionalities);
+
+        return roleFunctionalities.stream()
+                .map(rf -> rf.getFunctionality().getId())
+                .collect(Collectors.toList());
+    }
+
+    @JsonProperty("functionalities")
+    public List<Functionality> getFunctionalities() {
+        if (roleFunctionalities == null || roleFunctionalities.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Force o carregamento se for Lazy
+        Hibernate.initialize(roleFunctionalities);
+
+        return roleFunctionalities.stream()
+                .map(RoleFunctionality::getFunctionality)
+                .collect(Collectors.toList());
+    }
 
     public Role(String name) {
         this.name = RoleEnum.valueOf(name);

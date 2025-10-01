@@ -224,6 +224,12 @@ public class PasswordResetServiceImpl implements IPasswordResetService {
                         .build();
             }
 
+            if (wasFirstAccess) {
+                user.setFirstLoginCompleted(true);
+                userRepository.save(user);
+                log.info("Primeiro login marcado como completo para usuário: {}", user.getUsername());
+            }
+
             return generateAutoLoginTokens(user);
 
         } catch (IllegalArgumentException e) {
