@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -157,9 +158,11 @@ class UserTokenServiceUnitTest {
     }
 
     @Test
-    void getActiveToken_ExistingActiveToken_ReturnsToken() {
+    void getActiveToken_SingleActiveToken_ReturnsToken() {
         // Given
         Long userId = 1L;
+        when(userTokenRepository.countActiveTokensByUserId(eq(userId), any(LocalDateTime.class)))
+                .thenReturn(1L);
         when(userTokenRepository.findActiveByUserId(eq(userId), any(LocalDateTime.class)))
                 .thenReturn(Optional.of(validToken));
 
@@ -169,6 +172,7 @@ class UserTokenServiceUnitTest {
         // Then
         assertTrue(result.isPresent());
         assertEquals(validToken, result.get());
+        verify(userTokenRepository).countActiveTokensByUserId(eq(userId), any(LocalDateTime.class));
         verify(userTokenRepository).findActiveByUserId(eq(userId), any(LocalDateTime.class));
     }
 
@@ -176,15 +180,50 @@ class UserTokenServiceUnitTest {
     void getActiveToken_NoActiveToken_ReturnsEmpty() {
         // Given
         Long userId = 1L;
-        when(userTokenRepository.findActiveByUserId(eq(userId), any(LocalDateTime.class)))
-                .thenReturn(Optional.empty());
+        when(userTokenRepository.countActiveTokensByUserId(eq(userId), any(LocalDateTime.class)))
+                .thenReturn(0L);
 
         // When
         Optional<UserToken> result = userTokenService.getActiveToken(userId);
 
         // Then
         assertFalse(result.isPresent());
-        verify(userTokenRepository).findActiveByUserId(eq(userId), any(LocalDateTime.class));
+        verify(userTokenRepository).countActiveTokensByUserId(eq(userId), any(LocalDateTime.class));
+        verify(userTokenRepository, never()).findActiveByUserId(any(), any());
+    }
+
+    @Test
+    void getActiveToken_MultipleActiveTokens_CleansUpAndReturnsLatest() {
+        // Given
+        Long userId = 1L;
+        UserToken olderToken = UserToken.builder()
+                .id(2L)
+                .user(testUser)
+                .token("OLD01")
+                .createdAt(LocalDateTime.now().minusMinutes(10))
+                .expiresAt(LocalDateTime.now().plusMinutes(5))
+                .isValid(true)
+                .build();
+        
+        when(userTokenRepository.countActiveTokensByUserId(eq(userId), any(LocalDateTime.class)))
+                .thenReturn(2L);
+        when(userTokenRepository.findAllActiveByUserId(eq(userId), any(LocalDateTime.class)))
+                .thenReturn(List.of(olderToken, validToken));
+        when(userTokenRepository.save(any(UserToken.class))).thenReturn(olderToken);
+
+        // When
+        Optional<UserToken> result = userTokenService.getActiveToken(userId);
+
+        // Then
+        assertTrue(result.isPresent());
+        assertEquals(validToken, result.get()); // Deve retornar o mais recente
+        
+        // Verificar que o token mais antigo foi invalidado
+        verify(userTokenRepository).save(olderToken);
+        assertFalse(olderToken.getIsValid());
+        
+        verify(userTokenRepository).countActiveTokensByUserId(eq(userId), any(LocalDateTime.class));
+        verify(userTokenRepository).findAllActiveByUserId(eq(userId), any(LocalDateTime.class));
     }
 
     @Test

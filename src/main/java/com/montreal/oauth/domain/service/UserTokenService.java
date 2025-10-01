@@ -57,7 +57,39 @@ public class UserTokenService {
 
     @Transactional(readOnly = true)
     public Optional<UserToken> getActiveToken(Long userId) {
-        return userTokenRepository.findActiveByUserId(userId, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Primeiro, verificar quantos tokens ativos existem
+        long activeCount = userTokenRepository.countActiveTokensByUserId(userId, now);
+        
+        if (activeCount == 0) {
+            return Optional.empty();
+        } else if (activeCount == 1) {
+            // Caso ideal: apenas um token ativo
+            return userTokenRepository.findActiveByUserId(userId, now);
+        } else {
+            // Problema: múltiplos tokens ativos
+            log.warn("Found {} active tokens for user {}. Expected only 1. Cleaning up...", activeCount, userId);
+            
+            // Buscar todos os tokens ativos
+            var activeTokens = userTokenRepository.findAllActiveByUserId(userId, now);
+            
+            // Manter apenas o mais recente
+            var latest = activeTokens.stream()
+                    .max((t1, t2) -> t1.getCreatedAt().compareTo(t2.getCreatedAt()))
+                    .orElse(null);
+            
+            // Invalidar todos os outros
+            activeTokens.stream()
+                    .filter(t -> !t.equals(latest))
+                    .forEach(t -> {
+                        t.setIsValid(false);
+                        userTokenRepository.save(t);
+                        log.info("Invalidated duplicate token {} for user {}", t.getToken(), userId);
+                    });
+            
+            return Optional.ofNullable(latest);
+        }
     }
 
     @Transactional

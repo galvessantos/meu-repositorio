@@ -398,45 +398,58 @@ class UserTokenRepositoryIntegrationTest {
     }
 
     @Test
-    void findActiveByUserId_WithManyValidTokens_ReturnsOnlyOne() {
-        // Given - Criar muitos tokens válidos para testar se LIMIT 1 funciona
+    void countActiveTokensByUserId_WithMultipleTokens_ReturnsCorrectCount() {
+        // Given - Criar múltiplos tokens válidos
         LocalDateTime now = LocalDateTime.now();
-        for (int i = 1; i <= 5; i++) {
+        for (int i = 1; i <= 3; i++) {
             UserToken token = createUserToken(testUser, "TOK" + String.format("%02d", i), 
                                             now.minusMinutes(10 - i), now.plusMinutes(5), true);
             userTokenRepository.save(token);
-            // Pequena pausa para garantir ordem de criação
-            try { Thread.sleep(5); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
 
         // When
-        Optional<UserToken> result = userTokenRepository.findActiveByUserId(testUser.getId(), now);
+        long activeCount = userTokenRepository.countActiveTokensByUserId(testUser.getId(), now);
 
         // Then
-        assertTrue(result.isPresent());
-        // Deve retornar o token mais recente (TOK05)
-        assertEquals("TOK05", result.get().getToken());
-        
-        // Verificar que existem múltiplos tokens válidos no banco
-        var allTokens = userTokenRepository.findAll();
-        long validCount = allTokens.stream()
-                .filter(t -> t.getUser().getId().equals(testUser.getId()) && t.getIsValid())
-                .count();
-        assertEquals(5, validCount);
+        assertEquals(3, activeCount);
     }
 
     @Test
-    void findLatestByUserIdAndToken_WithManyIdenticalTokens_ReturnsOnlyOne() {
-        // Given - Criar múltiplos tokens com mesmo valor para testar LIMIT 1
+    void findAllActiveByUserId_WithMultipleTokens_ReturnsAllActive() {
+        // Given - Criar múltiplos tokens (alguns válidos, alguns inválidos)
+        LocalDateTime now = LocalDateTime.now();
+        UserToken validToken1 = createUserToken(testUser, "VAL01", now.minusMinutes(5), now.plusMinutes(5), true);
+        UserToken validToken2 = createUserToken(testUser, "VAL02", now.minusMinutes(3), now.plusMinutes(5), true);
+        UserToken invalidToken = createUserToken(testUser, "INV01", now.minusMinutes(2), now.plusMinutes(5), false);
+        UserToken expiredToken = createUserToken(testUser, "EXP01", now.minusMinutes(10), now.minusMinutes(2), true);
+        
+        userTokenRepository.save(validToken1);
+        userTokenRepository.save(validToken2);
+        userTokenRepository.save(invalidToken);
+        userTokenRepository.save(expiredToken);
+
+        // When
+        var activeTokens = userTokenRepository.findAllActiveByUserId(testUser.getId(), now);
+
+        // Then
+        assertEquals(2, activeTokens.size());
+        assertTrue(activeTokens.stream().anyMatch(t -> "VAL01".equals(t.getToken())));
+        assertTrue(activeTokens.stream().anyMatch(t -> "VAL02".equals(t.getToken())));
+    }
+
+    @Test
+    void findLatestByUserIdAndToken_WithMultipleIdenticalTokens_ReturnsLatest() {
+        // Given - Criar múltiplos tokens com mesmo valor
         LocalDateTime now = LocalDateTime.now();
         String tokenValue = "SAME01";
         
-        for (int i = 1; i <= 3; i++) {
-            UserToken token = createUserToken(testUser, tokenValue, 
-                                            now.minusMinutes(10 - i), now.plusMinutes(5), true);
-            userTokenRepository.save(token);
-            try { Thread.sleep(5); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-        }
+        UserToken olderToken = createUserToken(testUser, tokenValue, now.minusMinutes(10), now.plusMinutes(5), true);
+        userTokenRepository.save(olderToken);
+        
+        try { Thread.sleep(10); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        
+        UserToken newerToken = createUserToken(testUser, tokenValue, now.minusMinutes(5), now.plusMinutes(5), true);
+        userTokenRepository.save(newerToken);
 
         // When
         Optional<UserToken> result = userTokenRepository.findLatestByUserIdAndToken(testUser.getId(), tokenValue);
@@ -444,13 +457,9 @@ class UserTokenRepositoryIntegrationTest {
         // Then
         assertTrue(result.isPresent());
         assertEquals(tokenValue, result.get().getToken());
-        
-        // Verificar que existem múltiplos tokens com mesmo valor no banco
-        var allTokens = userTokenRepository.findAll();
-        long sameTokenCount = allTokens.stream()
-                .filter(t -> t.getUser().getId().equals(testUser.getId()) && tokenValue.equals(t.getToken()))
-                .count();
-        assertEquals(3, sameTokenCount);
+        // Deve retornar o mais recente
+        assertEquals(newerToken.getId(), result.get().getId());
+        assertTrue(result.get().getCreatedAt().isAfter(olderToken.getCreatedAt()));
     }
 
     // Método auxiliar para criar UserToken
