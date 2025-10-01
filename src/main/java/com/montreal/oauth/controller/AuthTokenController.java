@@ -94,19 +94,9 @@ public class AuthTokenController {
     public ResponseEntity<GenerateTokenResponse> generateToken(
         @Parameter(description = "Dados para geração do token 2FA", required = true)
         @RequestBody GenerateTokenRequest req) {
-        
-        if (req.getUserId() == null) {
-            return ResponseEntity.badRequest().build();
-        }
-        
-        try {
-            UserInfo user = userService.findById(req.getUserId());
-            var token = userTokenService.generateAndPersist(user);
-            return ResponseEntity.ok(new GenerateTokenResponse(token.getToken(), token.getExpiresAt().toString()));
-        } catch (Exception e) {
-            log.error("Error generating token for user {}", req.getUserId(), e);
-            return ResponseEntity.notFound().build();
-        }
+        UserInfo user = userService.findById(req.getUserId());
+        var token = userTokenService.generateAndPersist(user);
+        return ResponseEntity.ok(new GenerateTokenResponse(token.getToken(), token.getExpiresAt().toString()));
     }
 
     @Operation(
@@ -193,11 +183,6 @@ public class AuthTokenController {
     public ResponseEntity<?> validateToken(
         @Parameter(description = "Dados para validação do token 2FA", required = true)
         @RequestBody ValidateTokenRequest req) {
-        
-        if (req.getUserId() == null || req.getToken() == null || req.getToken().trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(new ValidateTokenError("DADOS_INVALIDOS"));
-        }
-        
         var result = userTokenService.validateToken(req.getUserId(), req.getToken());
         return switch (result) {
             case OK -> {
