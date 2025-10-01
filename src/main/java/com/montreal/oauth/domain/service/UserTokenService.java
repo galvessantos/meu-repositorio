@@ -41,7 +41,8 @@ public class UserTokenService {
     @Transactional
     public UserToken generateAndPersist(UserInfo user) {
         log.info("Generating login token for user {}", user.getUsername());
-        userTokenRepository.invalidateAllByUserId(user.getId());
+        int invalidatedCount = userTokenRepository.invalidateAllByUserId(user.getId());
+        log.info("Invalidated {} tokens for user {}", invalidatedCount, user.getUsername());
 
         String token = generateRandomToken(tokenLength);
         LocalDateTime now = LocalDateTime.now();

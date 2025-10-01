@@ -7,6 +7,7 @@ import com.montreal.oauth.domain.enumerations.RoleEnum;
 import com.montreal.oauth.domain.repository.IRoleRepository;
 import com.montreal.oauth.domain.repository.IUserRepository;
 import com.montreal.oauth.domain.repository.IUserTokenRepository;
+import com.montreal.oauth.domain.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,9 @@ class AuthTokenControllerIntegrationTest {
     @Autowired
     private IUserTokenRepository userTokenRepository;
 
+    @Autowired
+    private UserService userService;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
     private UserInfo testUser;
@@ -87,6 +91,9 @@ class AuthTokenControllerIntegrationTest {
         testUser.setCreatedByAdmin(false);
         testUser.setReset(false);
         testUser.setRoles(roles);
+        
+        // Encrypt sensitive fields before saving
+        testUser = userService.encryptSensitiveFields(testUser);
         testUser = userRepository.save(testUser);
     }
 

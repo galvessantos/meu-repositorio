@@ -98,13 +98,14 @@ class AuthTokenControllerUnitTest {
         when(userService.findById(1L)).thenReturn(testUser);
         when(userTokenService.generateAndPersist(testUser)).thenReturn(testToken);
 
-        ResponseEntity<AuthTokenController.GenerateTokenResponse> response =
-                authTokenController.generateToken(request);
+        ResponseEntity<?> response = authTokenController.generateToken(request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals("ABC12", response.getBody().getToken());
-        assertEquals(testToken.getExpiresAt().toString(), response.getBody().getExpiresAt());
+        assertTrue(response.getBody() instanceof AuthTokenController.GenerateTokenResponse);
+        AuthTokenController.GenerateTokenResponse tokenResponse = (AuthTokenController.GenerateTokenResponse) response.getBody();
+        assertEquals("ABC12", tokenResponse.getToken());
+        assertEquals(testToken.getExpiresAt().toString(), tokenResponse.getExpiresAt());
 
         verify(userService).findById(1L);
         verify(userTokenService).generateAndPersist(testUser);

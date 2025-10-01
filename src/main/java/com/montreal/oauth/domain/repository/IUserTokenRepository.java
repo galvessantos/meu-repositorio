@@ -15,7 +15,7 @@ public interface IUserTokenRepository extends JpaRepository<UserToken, Long> {
     @Query("select ut from UserToken ut where ut.user.id = :userId and ut.isValid = true and ut.expiresAt > :now order by ut.createdAt desc")
     Optional<UserToken> findActiveByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update UserToken ut set ut.isValid = false where ut.user.id = :userId and ut.isValid = true")
     int invalidateAllByUserId(@Param("userId") Long userId);
 

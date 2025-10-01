@@ -598,6 +598,12 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    @Transactional
+    public void updateFirstLoginCompleted(Long userId, boolean firstLoginCompleted) {
+        log.info("Updating firstLoginCompleted for user ID: {} to {}", userId, firstLoginCompleted);
+        userRepository.updateFirstLoginCompleted(userId, firstLoginCompleted);
+    }
+
     public List<UserInfo> findUsersByCompanyId(Long companyId) {
         log.info("Buscando usuários pelo companyId: {}", companyId);
         List<UserInfo> users = userRepository.findAllByCompanyId(companyId);
@@ -676,7 +682,7 @@ public class UserService {
         userCopy.setResetAt(user.getResetAt());
         userCopy.setTokenTemporary(user.getTokenTemporary());
         userCopy.setTokenExpiredAt(user.getTokenExpiredAt());
-        userCopy.setEnabled(user.isEnabled());
+        userCopy.setFirstLoginCompleted(user.isFirstLoginCompleted());
 
         if (user.getCpf() != null) {
             try {

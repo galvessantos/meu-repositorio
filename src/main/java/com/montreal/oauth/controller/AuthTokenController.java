@@ -22,6 +22,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -89,12 +91,22 @@ public class AuthTokenController {
             )
     })
     @PostMapping("/generate-token")
-    public ResponseEntity<GenerateTokenResponse> generateToken(
+    public ResponseEntity<?> generateToken(
             @Parameter(description = "Dados para geração do token 2FA", required = true)
             @RequestBody GenerateTokenRequest req) {
-        UserInfo user = userService.findById(req.getUserId());
-        var token = userTokenService.generateAndPersist(user);
-        return ResponseEntity.ok(new GenerateTokenResponse(token.getToken(), token.getExpiresAt().toString()));
+        try {
+            if (req.getUserId() == null) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "User ID is required"));
+            }
+            UserInfo user = userService.findById(req.getUserId());
+            var token = userTokenService.generateAndPersist(user);
+            return ResponseEntity.ok(new GenerateTokenResponse(token.getToken(), token.getExpiresAt().toString()));
+        } catch (com.montreal.oauth.domain.exception.ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuário não encontrado"));
+        } catch (Exception e) {
+            log.error("Error generating token", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Erro interno do servidor"));
+        }
     }
 
     @Operation(
@@ -181,61 +193,73 @@ public class AuthTokenController {
     public ResponseEntity<?> validateToken(
             @Parameter(description = "Dados para validação do token 2FA", required = true)
             @RequestBody ValidateTokenRequest req) {
-        var result = userTokenService.validateToken(req.getUserId(), req.getToken());
-        return switch (result) {
-            case OK -> {
-                try {
-                    UserInfo user = userService.findById(req.getUserId());
-
-                    if (!user.isFirstLoginCompleted()) {
-                        user.setFirstLoginCompleted(true);
-                        userService.save(user);
-                        log.info("Primeiro login completado para usuário: {}", user.getUsername());
-                    }
-
-                    String accessToken = jwtService.GenerateToken(user.getUsername());
-                    String refreshToken = refreshTokenService.getTokenByUserId(user.getId());
-                    if (refreshToken.isEmpty()) {
-                        refreshToken = refreshTokenService.createRefreshToken(user.getUsername()).getToken();
-                    }
-
-                    AuthResponseDTO.UserDetailsDTO userDetails = AuthResponseDTO.UserDetailsDTO.builder()
-                            .id(user.getId())
-                            .username(user.getUsername())
-                            .email(user.getEmail())
-                            .roles(user.getRoles().stream().map(r -> r.getName().name()).toList())
-                            .cpf(user.getCpf())
-                            .phone(user.getPhone())
-                            .companyId(user.getCompanyId())
-                            .link(user.getLink())
-                            .tokenTemporary(user.getTokenTemporary())
-                            .tokenExpiredAt(user.getTokenExpiredAt())
-                            .isReset(user.isReset())
-                            .isEnabled(user.isEnabled())
-                            .isCreatedByAdmin(user.isCreatedByAdmin())
-                            .isPasswordChangedByUser(user.isPasswordChangedByUser())
-                            .build();
-
-                    var userData = AuthResponseDTO.builder()
-                            .user(userDetails)
-                            .permissions(null)
-                            .functionalities(null)
-                            .build();
-
-                    JwtResponseDTO jwt = JwtResponseDTO.builder()
-                            .accessToken(accessToken)
-                            .token(refreshToken)
-                            .userDetails(userData)
-                            .build();
-                    yield ResponseEntity.ok(jwt);
-                } catch (Exception e) {
-                    log.error("Error generating tokens after 2FA validation", e);
-                    yield ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ValidateTokenError("ERRO_INTERNO"));
-                }
+        try {
+            if (req.getUserId() == null || req.getToken() == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ValidateTokenError("TOKEN_INVALIDO"));
             }
-            case INVALID -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ValidateTokenError("TOKEN_INVALIDO"));
-            case EXPIRED -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ValidateTokenError("TOKEN_EXPIRADO"));
-        };
+
+            var result = userTokenService.validateToken(req.getUserId(), req.getToken());
+            return switch (result) {
+                case OK -> {
+                    try {
+                        UserInfo user = userService.findById(req.getUserId());
+
+                        if (!user.isFirstLoginCompleted()) {
+                            // Update only the firstLoginCompleted field directly in the database
+                            userService.updateFirstLoginCompleted(user.getId(), true);
+                            log.info("Primeiro login completado para usuário: {}", user.getUsername());
+                        }
+
+                        String accessToken = jwtService.GenerateToken(user.getUsername());
+                        String refreshToken = refreshTokenService.getTokenByUserId(user.getId());
+                        if (refreshToken.isEmpty()) {
+                            refreshToken = refreshTokenService.createRefreshToken(user.getUsername()).getToken();
+                        }
+
+                        AuthResponseDTO.UserDetailsDTO userDetails = AuthResponseDTO.UserDetailsDTO.builder()
+                                .id(user.getId())
+                                .username(user.getUsername())
+                                .email(user.getEmail())
+                                .roles(user.getRoles().stream().map(r -> r.getName().name()).toList())
+                                .cpf(user.getCpf())
+                                .phone(user.getPhone())
+                                .companyId(user.getCompanyId())
+                                .link(user.getLink())
+                                .tokenTemporary(user.getTokenTemporary())
+                                .tokenExpiredAt(user.getTokenExpiredAt())
+                                .isReset(user.isReset())
+                                .isEnabled(user.isEnabled())
+                                .isCreatedByAdmin(user.isCreatedByAdmin())
+                                .isPasswordChangedByUser(user.isPasswordChangedByUser())
+                                .build();
+
+                        var userData = AuthResponseDTO.builder()
+                                .user(userDetails)
+                                .permissions(null)
+                                .functionalities(null)
+                                .build();
+
+                        JwtResponseDTO jwt = JwtResponseDTO.builder()
+                                .accessToken(accessToken)
+                                .token(refreshToken)
+                                .userDetails(userData)
+                                .build();
+                        yield ResponseEntity.ok(jwt);
+                    } catch (com.montreal.oauth.domain.exception.ResourceNotFoundException e) {
+                        log.error("User not found during token validation", e);
+                        yield ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ValidateTokenError("TOKEN_INVALIDO"));
+                    } catch (Exception e) {
+                        log.error("Error generating tokens after 2FA validation", e);
+                        yield ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ValidateTokenError("ERRO_INTERNO"));
+                    }
+                }
+                case INVALID -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ValidateTokenError("TOKEN_INVALIDO"));
+                case EXPIRED -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ValidateTokenError("TOKEN_EXPIRADO"));
+            };
+        } catch (Exception e) {
+            log.error("Error during token validation", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ValidateTokenError("ERRO_INTERNO"));
+        }
     }
 
     @Data
@@ -259,14 +283,23 @@ public class AuthTokenController {
                 example = "A1B2C",
                 required = true
         )
-        private final String token;
+        private String token;
 
         @Schema(
                 description = "Data e hora de expiração do token (ISO 8601)",
                 example = "2024-01-15T10:30:00",
                 required = true
         )
-        private final String expiresAt;
+        private String expiresAt;
+
+        // Default constructor for Jackson
+        public GenerateTokenResponse() {}
+
+        // Constructor with parameters
+        public GenerateTokenResponse(String token, String expiresAt) {
+            this.token = token;
+            this.expiresAt = expiresAt;
+        }
     }
 
     @Data
