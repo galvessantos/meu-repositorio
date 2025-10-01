@@ -319,7 +319,7 @@ class AuthTokenControllerIntegrationTest {
         LocalDateTime now = LocalDateTime.now();
         UserToken validToken = UserToken.builder()
                 .user(testUser)
-                .token("FIRST_LOGIN")
+                .token("FIRST1")
                 .createdAt(now.minusMinutes(2))
                 .expiresAt(now.plusMinutes(3))
                 .isValid(true)
@@ -328,7 +328,7 @@ class AuthTokenControllerIntegrationTest {
 
         AuthTokenController.ValidateTokenRequest request = new AuthTokenController.ValidateTokenRequest();
         request.setUserId(testUser.getId());
-        request.setToken("FIRST_LOGIN");
+        request.setToken("FIRST1");
 
         // When
         mockMvc.perform(post("/api/v1/auth/validate-token")
@@ -351,7 +351,13 @@ class AuthTokenControllerIntegrationTest {
         anotherUser.setEmail("another@example.com");
         anotherUser.setPassword(passwordEncoder.encode("Test@456"));
         anotherUser.setCpf("98765432100");
+        anotherUser.setPhone("+5511888888888");
+        anotherUser.setCompanyId("456");
         anotherUser.setEnabled(true);
+        anotherUser.setFirstLoginCompleted(true);
+        anotherUser.setPasswordChangedByUser(true);
+        anotherUser.setCreatedByAdmin(false);
+        anotherUser.setReset(false);
         anotherUser.setRoles(testUser.getRoles());
         anotherUser = userRepository.save(anotherUser);
 
@@ -359,7 +365,7 @@ class AuthTokenControllerIntegrationTest {
         LocalDateTime now = LocalDateTime.now();
         UserToken tokenForTestUser = UserToken.builder()
                 .user(testUser)
-                .token("WRONG_USER")
+                .token("WRONG1")
                 .createdAt(now.minusMinutes(2))
                 .expiresAt(now.plusMinutes(3))
                 .isValid(true)
@@ -369,7 +375,7 @@ class AuthTokenControllerIntegrationTest {
         // Tentar validar com o segundo usuário
         AuthTokenController.ValidateTokenRequest request = new AuthTokenController.ValidateTokenRequest();
         request.setUserId(anotherUser.getId());
-        request.setToken("WRONG_USER");
+        request.setToken("WRONG1");
 
         // When & Then
         mockMvc.perform(post("/api/v1/auth/validate-token")

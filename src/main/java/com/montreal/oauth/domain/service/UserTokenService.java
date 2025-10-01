@@ -55,7 +55,7 @@ public class UserTokenService {
         return userTokenRepository.save(ut);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public Optional<UserToken> getActiveToken(Long userId) {
         LocalDateTime now = LocalDateTime.now();
         
@@ -63,32 +63,36 @@ public class UserTokenService {
             // Tentar buscar normalmente primeiro
             return userTokenRepository.findActiveByUserId(userId, now);
         } catch (Exception e) {
-            // Se falhar (múltiplos resultados), fazer limpeza
+            // Se falhar (múltiplos resultados), fazer limpeza em transação separada
             log.warn("Multiple active tokens detected for user {}. Cleaning up...", userId);
-            
-            // Buscar todos os tokens ativos
-            var activeTokens = userTokenRepository.findAllActiveByUserId(userId, now);
-            
-            if (activeTokens.isEmpty()) {
-                return Optional.empty();
-            }
-            
-            // Manter apenas o mais recente
-            var latest = activeTokens.stream()
-                    .max((t1, t2) -> t1.getCreatedAt().compareTo(t2.getCreatedAt()))
-                    .orElse(null);
-            
-            // Invalidar todos os outros
-            activeTokens.stream()
-                    .filter(t -> !t.equals(latest))
-                    .forEach(t -> {
-                        t.setIsValid(false);
-                        userTokenRepository.save(t);
-                        log.info("Invalidated duplicate token {} for user {}", t.getToken(), userId);
-                    });
-            
-            return Optional.ofNullable(latest);
+            return cleanupDuplicateTokens(userId, now);
         }
+    }
+    
+    @Transactional
+    public Optional<UserToken> cleanupDuplicateTokens(Long userId, LocalDateTime now) {
+        // Buscar todos os tokens ativos
+        var activeTokens = userTokenRepository.findAllActiveByUserId(userId, now);
+        
+        if (activeTokens.isEmpty()) {
+            return Optional.empty();
+        }
+        
+        // Manter apenas o mais recente
+        var latest = activeTokens.stream()
+                .max((t1, t2) -> t1.getCreatedAt().compareTo(t2.getCreatedAt()))
+                .orElse(null);
+        
+        // Invalidar todos os outros
+        activeTokens.stream()
+                .filter(t -> !t.equals(latest))
+                .forEach(t -> {
+                    t.setIsValid(false);
+                    userTokenRepository.save(t);
+                    log.info("Invalidated duplicate token {} for user {}", t.getToken(), userId);
+                });
+        
+        return Optional.ofNullable(latest);
     }
 
     @Transactional
