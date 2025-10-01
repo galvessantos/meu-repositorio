@@ -7,6 +7,14 @@ import com.montreal.oauth.domain.service.JwtService;
 import com.montreal.oauth.domain.service.RefreshTokenService;
 import com.montreal.oauth.domain.service.UserService;
 import com.montreal.oauth.domain.service.UserTokenService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
+@Tag(name = "Autenticação 2FA", description = "Endpoints para geração e validação de tokens de autenticação de dois fatores (2FA)")
 public class AuthTokenController {
 
     private final UserService userService;
@@ -25,15 +34,153 @@ public class AuthTokenController {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
 
+    @Operation(
+        summary = "Gerar token 2FA",
+        description = "Gera um token de autenticação de dois fatores (2FA) para um usuário específico. " +
+                     "O token tem validade limitada e deve ser usado para validação posterior."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Token gerado com sucesso",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = GenerateTokenResponse.class),
+                examples = @ExampleObject(
+                    name = "Sucesso",
+                    value = """
+                        {
+                          "token": "A1B2C",
+                          "expiresAt": "2024-01-15T10:30:00"
+                        }
+                        """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuário não encontrado",
+            content = @Content(
+                mediaType = "application/json",
+                examples = @ExampleObject(
+                    name = "Usuário não encontrado",
+                    value = """
+                        {
+                          "error": "Usuário não encontrado"
+                        }
+                        """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "Erro interno do servidor",
+            content = @Content(
+                mediaType = "application/json",
+                examples = @ExampleObject(
+                    name = "Erro interno",
+                    value = """
+                        {
+                          "error": "Erro interno do servidor"
+                        }
+                        """
+                )
+            )
+        )
+    })
     @PostMapping("/generate-token")
-    public ResponseEntity<GenerateTokenResponse> generateToken(@RequestBody GenerateTokenRequest req) {
+    public ResponseEntity<GenerateTokenResponse> generateToken(
+        @Parameter(description = "Dados para geração do token 2FA", required = true)
+        @RequestBody GenerateTokenRequest req) {
         UserInfo user = userService.findById(req.getUserId());
         var token = userTokenService.generateAndPersist(user);
         return ResponseEntity.ok(new GenerateTokenResponse(token.getToken(), token.getExpiresAt().toString()));
     }
 
+    @Operation(
+        summary = "Validar token 2FA",
+        description = "Valida um token de autenticação de dois fatores (2FA) e, se válido, " +
+                     "retorna os tokens JWT de acesso e refresh para autenticação completa do usuário."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Token validado com sucesso - retorna JWT completo",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = JwtResponseDTO.class),
+                examples = @ExampleObject(
+                    name = "Validação bem-sucedida",
+                    value = """
+                        {
+                          "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                          "token": "refresh-token-string",
+                          "userDetails": {
+                            "user": {
+                              "id": 1,
+                              "username": "usuario@exemplo.com",
+                              "email": "usuario@exemplo.com",
+                              "roles": ["USER"],
+                              "cpf": "12345678901",
+                              "phone": "+5511999999999",
+                              "companyId": "123",
+                              "isEnabled": true
+                            },
+                            "permissions": [],
+                            "functionalities": []
+                          }
+                        }
+                        """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "Token inválido ou expirado",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ValidateTokenError.class),
+                examples = {
+                    @ExampleObject(
+                        name = "Token inválido",
+                        value = """
+                            {
+                              "error": "TOKEN_INVALIDO"
+                            }
+                            """
+                    ),
+                    @ExampleObject(
+                        name = "Token expirado",
+                        value = """
+                            {
+                              "error": "TOKEN_EXPIRADO"
+                            }
+                            """
+                    )
+                }
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "Erro interno durante a validação",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ValidateTokenError.class),
+                examples = @ExampleObject(
+                    name = "Erro interno",
+                    value = """
+                        {
+                          "error": "ERRO_INTERNO"
+                        }
+                        """
+                )
+            )
+        )
+    })
     @PostMapping("/validate-token")
-    public ResponseEntity<?> validateToken(@RequestBody ValidateTokenRequest req) {
+    public ResponseEntity<?> validateToken(
+        @Parameter(description = "Dados para validação do token 2FA", required = true)
+        @RequestBody ValidateTokenRequest req) {
         var result = userTokenService.validateToken(req.getUserId(), req.getToken());
         return switch (result) {
             case OK -> {
@@ -92,24 +239,67 @@ public class AuthTokenController {
     }
 
     @Data
+    @Schema(description = "Requisição para geração de token 2FA")
     public static class GenerateTokenRequest {
+        
+        @Schema(
+            description = "ID do usuário para o qual o token será gerado",
+            example = "1",
+            required = true
+        )
         private Long userId;
     }
 
     @Data
+    @Schema(description = "Resposta da geração de token 2FA")
     public static class GenerateTokenResponse {
+        
+        @Schema(
+            description = "Token 2FA gerado (código alfanumérico)",
+            example = "A1B2C",
+            required = true
+        )
         private final String token;
+        
+        @Schema(
+            description = "Data e hora de expiração do token (ISO 8601)",
+            example = "2024-01-15T10:30:00",
+            required = true
+        )
         private final String expiresAt;
     }
 
     @Data
+    @Schema(description = "Requisição para validação de token 2FA")
     public static class ValidateTokenRequest {
+        
+        @Schema(
+            description = "ID do usuário que está validando o token",
+            example = "1",
+            required = true
+        )
         private Long userId;
+        
+        @Schema(
+            description = "Token 2FA a ser validado",
+            example = "A1B2C",
+            required = true,
+            minLength = 5,
+            maxLength = 10
+        )
         private String token;
     }
 
     @Data
+    @Schema(description = "Resposta de erro na validação de token 2FA")
     public static class ValidateTokenError {
+        
+        @Schema(
+            description = "Código do erro ocorrido durante a validação",
+            example = "TOKEN_INVALIDO",
+            required = true,
+            allowableValues = {"TOKEN_INVALIDO", "TOKEN_EXPIRADO", "ERRO_INTERNO"}
+        )
         private final String error;
     }
 }
