@@ -112,16 +112,15 @@ class AuthTokenControllerUnitTest {
     }
 
     @Test
-    void generateToken_InvalidUser_ThrowsException() {
+    void generateToken_InvalidUser_ReturnsNotFound() {
         AuthTokenController.GenerateTokenRequest request = new AuthTokenController.GenerateTokenRequest();
         request.setUserId(999L);
 
-        when(userService.findById(999L)).thenThrow(new RuntimeException("User not found"));
+        when(userService.findById(999L)).thenThrow(new com.montreal.oauth.domain.exception.ResourceNotFoundException("User not found"));
 
-        assertThrows(RuntimeException.class, () -> {
-            authTokenController.generateToken(request);
-        });
+        ResponseEntity<?> response = authTokenController.generateToken(request);
 
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         verify(userService).findById(999L);
         verify(userTokenService, never()).generateAndPersist(any());
     }
@@ -134,7 +133,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
-        when(userService.save(any(UserInfo.class))).thenReturn(testUser);
+        doNothing().when(userService).updateFirstLoginCompleted(1L, true);
         when(jwtService.GenerateToken("testuser@example.com")).thenReturn("jwt-access-token");
         when(refreshTokenService.getTokenByUserId(1L)).thenReturn("");
         when(refreshTokenService.createRefreshToken("testuser@example.com"))
@@ -165,7 +164,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
-        when(userService.save(any(UserInfo.class))).thenReturn(testUser);
+        doNothing().when(userService).updateFirstLoginCompleted(1L, true);
         when(jwtService.GenerateToken("testuser@example.com")).thenReturn("jwt-access-token");
         when(refreshTokenService.getTokenByUserId(1L)).thenReturn("existing-refresh-token");
 
@@ -192,7 +191,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
-        when(userService.save(any(UserInfo.class))).thenReturn(testUser);
+        doNothing().when(userService).updateFirstLoginCompleted(1L, true);
         when(jwtService.GenerateToken("testuser@example.com")).thenReturn("jwt-access-token");
         when(refreshTokenService.getTokenByUserId(1L)).thenReturn("");
         when(refreshTokenService.createRefreshToken("testuser@example.com"))
@@ -201,8 +200,7 @@ class AuthTokenControllerUnitTest {
         ResponseEntity<?> response = authTokenController.validateToken(request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(testUser.isFirstLoginCompleted());
-        verify(userService).save(testUser);
+        verify(userService).updateFirstLoginCompleted(1L, true);
     }
 
     @Test
@@ -255,7 +253,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
-        when(userService.save(any(UserInfo.class))).thenReturn(testUser);
+        doNothing().when(userService).updateFirstLoginCompleted(1L, true);
         when(jwtService.GenerateToken("testuser@example.com")).thenThrow(new RuntimeException("JWT generation failed"));
 
         ResponseEntity<?> response = authTokenController.validateToken(request);
@@ -279,7 +277,7 @@ class AuthTokenControllerUnitTest {
 
         when(userTokenService.validateToken(1L, "ABC12")).thenReturn(UserTokenService.ValidationResult.OK);
         when(userService.findById(1L)).thenReturn(testUser);
-        when(userService.save(any(UserInfo.class))).thenReturn(testUser);
+        doNothing().when(userService).updateFirstLoginCompleted(1L, true);
         when(jwtService.GenerateToken("testuser@example.com")).thenReturn("jwt-access-token");
         when(refreshTokenService.getTokenByUserId(1L)).thenReturn("");
         when(refreshTokenService.createRefreshToken("testuser@example.com"))
@@ -318,12 +316,11 @@ class AuthTokenControllerUnitTest {
         request.setUserId(null);
         request.setToken("ABC12");
 
-        when(userTokenService.validateToken(null, "ABC12")).thenReturn(UserTokenService.ValidationResult.INVALID);
-
         ResponseEntity<?> response = authTokenController.validateToken(request);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        verify(userTokenService).validateToken(null, "ABC12");
+        // Não deve chamar userTokenService pois a validação prévia falha
+        verify(userTokenService, never()).validateToken(any(), any());
     }
 
     @Test
@@ -332,12 +329,11 @@ class AuthTokenControllerUnitTest {
         request.setUserId(1L);
         request.setToken(null);
 
-        when(userTokenService.validateToken(1L, null)).thenReturn(UserTokenService.ValidationResult.INVALID);
-
         ResponseEntity<?> response = authTokenController.validateToken(request);
 
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
-        verify(userTokenService).validateToken(1L, null);
+        // Não deve chamar userTokenService pois a validação prévia falha
+        verify(userTokenService, never()).validateToken(any(), any());
     }
 
     private com.montreal.oauth.domain.entity.RefreshToken createMockRefreshToken(String token) {
