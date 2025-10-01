@@ -173,6 +173,8 @@ void findAllActiveByUserId_WithMultipleTokens_ReturnsAllActive() {
 ## 🚀 Migração e Deployment
 
 ### Script de Migração
+**Localização**: `/src/main/resources/database/add_unique_constraint_user_token__v2.sql`
+
 ```sql
 -- Limpar tokens duplicados existentes
 WITH ranked_tokens AS (
