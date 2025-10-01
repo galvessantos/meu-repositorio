@@ -141,11 +141,10 @@ class AuthTokenControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/generate-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestJson))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void generateToken_InvalidatesOldTokens() throws Exception {
         // Given
         // Criar token antigo
@@ -380,20 +379,12 @@ class AuthTokenControllerIntegrationTest {
         request.setToken("WRONG1");
 
         // When & Then
-        var result = mockMvc.perform(post("/api/v1/auth/validate-token")
+        mockMvc.perform(post("/api/v1/auth/validate-token")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)));
-        
-        // Debug do erro
-        if (result.andReturn().getResponse().getStatus() == 500) {
-            System.out.println("=== ERRO 500 DEBUG ===");
-            System.out.println("Response: " + result.andReturn().getResponse().getContentAsString());
-            System.out.println("======================");
-        }
-        
-        result.andExpect(status().isUnauthorized())
-              .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-              .andExpect(jsonPath("$.error", is("TOKEN_INVALIDO")));
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.error", is("TOKEN_INVALIDO")));
     }
 
     @Test

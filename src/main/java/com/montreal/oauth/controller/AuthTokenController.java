@@ -259,21 +259,14 @@ public class AuthTokenController {
             example = "A1B2C",
             required = true
         )
-        private String token;
+        private final String token;
         
         @Schema(
             description = "Data e hora de expiração do token (ISO 8601)",
             example = "2024-01-15T10:30:00",
             required = true
         )
-        private String expiresAt;
-        
-        public GenerateTokenResponse(String token, String expiresAt) {
-            this.token = token;
-            this.expiresAt = expiresAt;
-        }
-        
-        public GenerateTokenResponse() {} // Construtor padrão para Jackson
+        private final String expiresAt;
     }
 
     @Data
@@ -307,12 +300,6 @@ public class AuthTokenController {
             required = true,
             allowableValues = {"TOKEN_INVALIDO", "TOKEN_EXPIRADO", "ERRO_INTERNO"}
         )
-        private String error;
-        
-        public ValidateTokenError(String error) {
-            this.error = error;
-        }
-        
-        public ValidateTokenError() {} // Construtor padrão para Jackson
+        private final String error;
     }
 }
