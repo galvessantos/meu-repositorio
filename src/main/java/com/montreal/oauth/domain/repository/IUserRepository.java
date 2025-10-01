@@ -92,4 +92,8 @@ public interface IUserRepository extends CustomJpaRepository<UserInfo, Long>, Jp
 			"WHERE u.id = :userId")
 	Optional<UserInfo> findByIdWithRolesAndFunctionalities(@Param("userId") Long userId);
 
+	@org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query("UPDATE UserInfo u SET u.isFirstLoginCompleted = :firstLoginCompleted WHERE u.id = :userId")
+	int updateFirstLoginCompleted(@Param("userId") Long userId, @Param("firstLoginCompleted") boolean firstLoginCompleted);
+
 }
